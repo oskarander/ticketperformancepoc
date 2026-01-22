@@ -22,6 +22,7 @@ let trendChart, barChart, productChart, contributionChart;
 function initData() {
     rawData = [];
     // Access the global variable defined in data.js
+    console.log('Loading Dashboard Data v', DASHBOARD_DATA.config.DATA_VERSION);
     const { products: PRODUCTS, hierarchy } = DASHBOARD_DATA;
 
     // Config

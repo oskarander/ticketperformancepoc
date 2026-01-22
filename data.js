@@ -1,6 +1,7 @@
 const DASHBOARD_DATA = {
     "config": {
-        "AIRPORT_GROWTH_PCT": 12.5
+        "AIRPORT_GROWTH_PCT": 12.5,
+        "DATA_VERSION": "1.1.0"
     },
     "products": {
         "Standard": [
