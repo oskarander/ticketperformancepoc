@@ -366,14 +366,11 @@ function renderXCOMView(xcomGroups, globalPax) {
         const revEl = document.getElementById(`xcom-${groupName.toLowerCase()}-rev`);
         if (revEl) {
             const revGrowth = group.py.Revenue > 0 ? ((group.cy.Revenue - group.py.Revenue) / group.py.Revenue) * 100 : 0;
+            const growthColor = revGrowth >= 0 ? 'text-green-600' : 'text-red-600';
+            const arrow = revGrowth >= 0 ? '▲' : '▼';
             revEl.innerHTML = `
-                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Revenue))}</div>
-                <div class="text-sm mt-1">
-                    <span class="${revGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
-                        ${revGrowth >= 0 ? '▲' : '▼'} ${Math.abs(revGrowth).toFixed(1)}%
-                    </span>
-                    <span class="text-gray-500 ml-1">vs PY</span>
-                </div>
+                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Revenue))}</div>
+                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(revGrowth).toFixed(1)}%</div>
             `;
         }
 
@@ -381,14 +378,11 @@ function renderXCOMView(xcomGroups, globalPax) {
         const paxEl = document.getElementById(`xcom-${groupName.toLowerCase()}-pax`);
         if (paxEl) {
             const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
+            const growthColor = paxGrowth >= 0 ? 'text-green-600' : 'text-red-600';
+            const arrow = paxGrowth >= 0 ? '▲' : '▼';
             paxEl.innerHTML = `
-                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.PAX))}</div>
-                <div class="text-sm mt-1">
-                    <span class="${paxGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
-                        ${paxGrowth >= 0 ? '▲' : '▼'} ${Math.abs(paxGrowth).toFixed(1)}%
-                    </span>
-                    <span class="text-gray-500 ml-1">vs PY</span>
-                </div>
+                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.PAX))}</div>
+                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(paxGrowth).toFixed(1)}%</div>
             `;
         }
 
@@ -396,14 +390,11 @@ function renderXCOMView(xcomGroups, globalPax) {
         const ordEl = document.getElementById(`xcom-${groupName.toLowerCase()}-orders`);
         if (ordEl) {
             const ordGrowth = group.py.Orders > 0 ? ((group.cy.Orders - group.py.Orders) / group.py.Orders) * 100 : 0;
+            const growthColor = ordGrowth >= 0 ? 'text-green-600' : 'text-red-600';
+            const arrow = ordGrowth >= 0 ? '▲' : '▼';
             ordEl.innerHTML = `
-                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Orders))}</div>
-                <div class="text-sm mt-1">
-                    <span class="${ordGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
-                        ${ordGrowth >= 0 ? '▲' : '▼'} ${Math.abs(ordGrowth).toFixed(1)}%
-                    </span>
-                    <span class="text-gray-500 ml-1">vs PY</span>
-                </div>
+                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Orders))}</div>
+                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(ordGrowth).toFixed(1)}%</div>
             `;
         }
 
@@ -412,11 +403,9 @@ function renderXCOMView(xcomGroups, globalPax) {
         if (perfEl) {
             const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
             const gap = paxGrowth - AIRPORT_GROWTH_PCT;
+            const gapColor = gap >= 0 ? 'text-green-600' : 'text-red-600';
             perfEl.innerHTML = `
-                <div class="text-2xl font-bold ${gap >= 0 ? 'text-green-600' : 'text-red-600'}">
-                    ${gap > 0 ? '+' : ''}${gap.toFixed(1)} pp
-                </div>
-                <div class="text-xs text-gray-500 mt-1">vs Airport Growth</div>
+                <div class="${gapColor}">${gap > 0 ? '+' : ''}${gap.toFixed(1)} pp</div>
             `;
         }
 
@@ -425,8 +414,7 @@ function renderXCOMView(xcomGroups, globalPax) {
         if (shareEl) {
             const contribution = (group.cy.PAX / globalPax.cy) * 100;
             shareEl.innerHTML = `
-                <div class="text-2xl font-bold text-gray-900">${contribution.toFixed(1)}%</div>
-                <div class="text-xs text-gray-500 mt-1">of AEX Total PAX</div>
+                <div class="text-gray-900">${contribution.toFixed(1)}%</div>
             `;
         }
 
@@ -440,8 +428,7 @@ function renderXCOMView(xcomGroups, globalPax) {
             const groupShareOfAirport = (group.cy.PAX / airportCy) * 100;
 
             mktShareEl.innerHTML = `
-                <div class="text-2xl font-bold text-blue-600">${groupShareOfAirport.toFixed(2)}%</div>
-                <div class="text-xs text-gray-500 mt-1">Market Share Contrib.</div>
+                <div class="text-blue-600">${groupShareOfAirport.toFixed(2)}%</div>
             `;
         }
     });
