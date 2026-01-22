@@ -432,6 +432,36 @@ function renderXCOMView(xcomGroups, globalPax) {
                 <div class="text-blue-600">${groupShareOfAirport.toFixed(2)}%</div>
             `;
         }
+
+        // Yield (Revenue / PAX)
+        const yieldEl = document.getElementById(`xcom-${groupName.toLowerCase()}-yield`);
+        if (yieldEl) {
+            const yieldVal = group.cy.PAX > 0 ? group.cy.Revenue / group.cy.PAX : 0;
+            const yieldPy = group.py.PAX > 0 ? group.py.Revenue / group.py.PAX : 0;
+            const yieldGrowth = yieldPy > 0 ? ((yieldVal - yieldPy) / yieldPy) * 100 : 0;
+            const arrow = yieldGrowth >= 0 ? '▲' : '▼';
+            const color = yieldGrowth >= 0 ? 'text-green-600' : 'text-red-600';
+
+            yieldEl.innerHTML = `
+                <div class="text-gray-900">${Math.round(yieldVal)} kr</div>
+                <div class="text-xs mt-1 ${color}">${arrow} ${Math.abs(yieldGrowth).toFixed(1)}%</div>
+            `;
+        }
+
+        // Avg Order Value (Revenue / Orders)
+        const aovEl = document.getElementById(`xcom-${groupName.toLowerCase()}-aov`);
+        if (aovEl) {
+            const aovVal = group.cy.Orders > 0 ? group.cy.Revenue / group.cy.Orders : 0;
+            const aovPy = group.py.Orders > 0 ? group.py.Revenue / group.py.Orders : 0;
+            const aovGrowth = aovPy > 0 ? ((aovVal - aovPy) / aovPy) * 100 : 0;
+            const arrow = aovGrowth >= 0 ? '▲' : '▼';
+            const color = aovGrowth >= 0 ? 'text-green-600' : 'text-red-600';
+
+            aovEl.innerHTML = `
+                <div class="text-gray-900">${Math.round(aovVal)} kr</div>
+                <div class="text-xs mt-1 ${color}">${arrow} ${Math.abs(aovGrowth).toFixed(1)}%</div>
+            `;
+        }
     });
 }
 
