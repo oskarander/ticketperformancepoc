@@ -62,7 +62,7 @@ function initData() {
                             const rev = qty * prod.price;
                             const pax = qty * prod.paxCount;
 
-                            const growth = 1.08 + (Math.random() * 0.1 - 0.05); // ~8% growth
+                            const growth = 1.15 + (Math.random() * 0.1 - 0.05); // ~15% growth (above airport 12.5%)
 
                             rawData.push({
                                 dIndex, day, group, channel, sub,
@@ -135,11 +135,45 @@ function getAggregates() {
         channelContribution[d.channel] += d.cy.Revenue;
     });
 
+    // XCOM Executive Summary - Group channels
+    let xcomGroups = {
+        'WEB': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
+        'APP': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
+        'TVM': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
+        'Partner': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
+        'SAS': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } }
+    };
+
+    rawData.forEach(d => {
+        // Group channels into XCOM categories
+        let xcomCategory = null;
+        if (d.channel === 'WEB') {
+            xcomCategory = 'WEB';
+        } else if (d.channel === 'APP') {
+            xcomCategory = 'APP';
+        } else if (d.channel === 'TVM') {
+            xcomCategory = 'TVM';
+        } else if (d.channel === 'SAS' || (d.group === 'Partner' && d.channel === 'SAS')) {
+            xcomCategory = 'SAS';
+        } else if (d.group === 'Partner' && d.channel !== 'SAS') {
+            xcomCategory = 'Partner';
+        }
+
+        if (xcomCategory) {
+            xcomGroups[xcomCategory].cy.Revenue += d.cy.Revenue;
+            xcomGroups[xcomCategory].cy.PAX += d.cy.PAX;
+            xcomGroups[xcomCategory].cy.Orders += d.cy.Orders;
+            xcomGroups[xcomCategory].py.Revenue += d.py.Revenue;
+            xcomGroups[xcomCategory].py.PAX += d.py.PAX;
+            xcomGroups[xcomCategory].py.Orders += d.py.Orders;
+        }
+    });
+
     // Global Totals for Market Share Context
     let globalPax = { cy: 0, py: 0 };
     rawData.forEach(d => { globalPax.cy += d.cy.PAX; globalPax.py += d.py.PAX; });
 
-    return { kpi, trend, channelMix, productMix, channelContribution, globalPax };
+    return { kpi, trend, channelMix, productMix, channelContribution, xcomGroups, globalPax };
 }
 
 // ==========================================
@@ -154,6 +188,7 @@ function updateDashboard() {
     renderMainCharts(data);
     renderProductMixChart(data.productMix);
     renderChannelContributionChart(data.channelContribution, data.kpi.cy.Revenue);
+    renderXCOMView(data.xcomGroups, data.globalPax);
 
     // Dynamic Titles
     const drillTitle = state.drillChannel ? `${state.drillChannel} Sub-Channels` : `Sales Channel Mix`;
@@ -311,6 +346,103 @@ function renderChannelContributionChart(contributionData, totalRevenue) {
                     }
                 }
             }
+        }
+    });
+}
+
+function renderXCOMView(xcomGroups, globalPax) {
+    const AIRPORT_GROWTH_PCT = DASHBOARD_DATA.config.AIRPORT_GROWTH_PCT;
+
+    // Calculate airport context
+    const airportPy = globalPax.py * 5;
+    const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
+    const aexShareCy = (globalPax.cy / airportCy) * 100;
+
+    // Render each channel group
+    ['WEB', 'APP', 'TVM', 'Partner', 'SAS'].forEach(groupName => {
+        const group = xcomGroups[groupName];
+
+        // Revenue
+        const revEl = document.getElementById(`xcom-${groupName.toLowerCase()}-rev`);
+        if (revEl) {
+            const revGrowth = group.py.Revenue > 0 ? ((group.cy.Revenue - group.py.Revenue) / group.py.Revenue) * 100 : 0;
+            revEl.innerHTML = `
+                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Revenue))}</div>
+                <div class="text-sm mt-1">
+                    <span class="${revGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
+                        ${revGrowth >= 0 ? '▲' : '▼'} ${Math.abs(revGrowth).toFixed(1)}%
+                    </span>
+                    <span class="text-gray-500 ml-1">vs PY</span>
+                </div>
+            `;
+        }
+
+        // PAX
+        const paxEl = document.getElementById(`xcom-${groupName.toLowerCase()}-pax`);
+        if (paxEl) {
+            const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
+            paxEl.innerHTML = `
+                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.PAX))}</div>
+                <div class="text-sm mt-1">
+                    <span class="${paxGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
+                        ${paxGrowth >= 0 ? '▲' : '▼'} ${Math.abs(paxGrowth).toFixed(1)}%
+                    </span>
+                    <span class="text-gray-500 ml-1">vs PY</span>
+                </div>
+            `;
+        }
+
+        // Orders
+        const ordEl = document.getElementById(`xcom-${groupName.toLowerCase()}-orders`);
+        if (ordEl) {
+            const ordGrowth = group.py.Orders > 0 ? ((group.cy.Orders - group.py.Orders) / group.py.Orders) * 100 : 0;
+            ordEl.innerHTML = `
+                <div class="text-2xl font-bold text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Orders))}</div>
+                <div class="text-sm mt-1">
+                    <span class="${ordGrowth >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">
+                        ${ordGrowth >= 0 ? '▲' : '▼'} ${Math.abs(ordGrowth).toFixed(1)}%
+                    </span>
+                    <span class="text-gray-500 ml-1">vs PY</span>
+                </div>
+            `;
+        }
+
+        // Performance vs Airport
+        const perfEl = document.getElementById(`xcom-${groupName.toLowerCase()}-perf`);
+        if (perfEl) {
+            const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
+            const gap = paxGrowth - AIRPORT_GROWTH_PCT;
+            perfEl.innerHTML = `
+                <div class="text-2xl font-bold ${gap >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${gap > 0 ? '+' : ''}${gap.toFixed(1)} pp
+                </div>
+                <div class="text-xs text-gray-500 mt-1">vs Airport Growth</div>
+            `;
+        }
+
+        // Market Share Contribution
+        const shareEl = document.getElementById(`xcom-${groupName.toLowerCase()}-share`);
+        if (shareEl) {
+            const contribution = (group.cy.PAX / globalPax.cy) * 100;
+            shareEl.innerHTML = `
+                <div class="text-2xl font-bold text-gray-900">${contribution.toFixed(1)}%</div>
+                <div class="text-xs text-gray-500 mt-1">of AEX Total PAX</div>
+            `;
+        }
+
+        // Contribution to AEX Market Share
+        const mktShareEl = document.getElementById(`xcom-${groupName.toLowerCase()}-mktshare`);
+        if (mktShareEl) {
+            const airportPy = globalPax.py * 5;
+            const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
+
+            // This channel group's contribution to AEX's overall market share
+            const groupShareOfAirport = (group.cy.PAX / airportCy) * 100;
+
+            mktShareEl.innerHTML = `
+                <div class="text-2xl font-bold text-blue-600">${groupShareOfAirport.toFixed(2)}%</div>
+                <div class="text-xs text-gray-500 mt-1">Market Share Contrib.</div>
+            `;
         }
     });
 }
