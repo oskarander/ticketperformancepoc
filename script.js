@@ -44,6 +44,7 @@ function initData() {
                     if (channel === 'TVM') baseOrders *= 35;
                     else if (channel === 'WEB') baseOrders *= 25;
                     else if (channel === 'APP') baseOrders *= 20;
+                    else if (channel === 'ARN') baseOrders *= 5; // ~5% share
                     else if (channel === 'B2B') baseOrders *= 8;
                     else if (channel === 'Zettle') baseOrders *= 4;
                     else if (channel === 'Flygtaxi') baseOrders *= 3;
@@ -141,6 +142,7 @@ function getAggregates() {
         'WEB': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'APP': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'TVM': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
+        'ARN': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'Partner': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'SAS': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } }
     };
@@ -154,6 +156,8 @@ function getAggregates() {
             xcomCategory = 'APP';
         } else if (d.channel === 'TVM') {
             xcomCategory = 'TVM';
+        } else if (d.channel === 'ARN') {
+            xcomCategory = 'ARN';
         } else if (d.channel === 'SAS' || (d.group === 'Partner' && d.channel === 'SAS')) {
             xcomCategory = 'SAS';
         } else if (d.group === 'Partner' && d.channel !== 'SAS') {
@@ -353,14 +357,39 @@ function renderChannelContributionChart(contributionData, totalRevenue) {
 
 function renderXCOMView(xcomGroups, globalPax) {
     const AIRPORT_GROWTH_PCT = DASHBOARD_DATA.config.AIRPORT_GROWTH_PCT;
+    const MARKET_SHARE_TARGET = DASHBOARD_DATA.config.MARKET_SHARE_TARGET;
+    const MARKET_SHARE_BUDGET = DASHBOARD_DATA.config.MARKET_SHARE_BUDGET;
 
     // Calculate airport context
-    const airportPy = globalPax.py * 5;
+    const airportPy = globalPax.py * 5; // Simplified assumption
     const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
     const aexShareCy = (globalPax.cy / airportCy) * 100;
 
+    // Render Global Benchmarks
+    const benchEl = document.getElementById('global-benchmarks');
+    if (benchEl) {
+        const targetGap = aexShareCy - MARKET_SHARE_TARGET;
+        const targetColor = targetGap >= 0 ? 'text-green-600' : 'text-red-600';
+
+        benchEl.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="text-gray-500">Actual:</span>
+                <span class="text-blue-600 font-bold">${aexShareCy.toFixed(1)}%</span>
+            </div>
+            <div class="flex items-center gap-2 border-l pl-4 border-gray-200">
+                <span class="text-gray-500">Target:</span>
+                <span class="text-gray-900 font-bold">${MARKET_SHARE_TARGET.toFixed(1)}%</span>
+                <span class="text-xs ${targetColor}">(${targetGap > 0 ? '+' : ''}${targetGap.toFixed(1)})</span>
+            </div>
+            <div class="flex items-center gap-2 border-l pl-4 border-gray-200">
+                <span class="text-gray-500">Budget:</span>
+                <span class="text-gray-900 font-bold">${MARKET_SHARE_BUDGET.toFixed(1)}%</span>
+            </div>
+        `;
+    }
+
     // Render each channel group
-    ['WEB', 'APP', 'TVM', 'Partner', 'SAS'].forEach(groupName => {
+    ['WEB', 'APP', 'TVM', 'ARN', 'Partner', 'SAS'].forEach(groupName => {
         const group = xcomGroups[groupName];
 
         // Revenue
