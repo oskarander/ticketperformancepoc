@@ -192,7 +192,7 @@ function updateDashboard() {
     renderKPIs(data.kpi);
     renderMainCharts(data);
     renderProductMixChart(data.productMix);
-    renderChannelContributionChart(data.channelContribution, data.kpi.cy.Revenue);
+    // Channel Contribution Chart removed (was causing crash)
     renderXCOMView(data.xcomGroups, data.globalPax);
 
     // Dynamic Titles
@@ -314,46 +314,6 @@ function renderProductMixChart(mixData) {
     });
 }
 
-function renderChannelContributionChart(contributionData, totalRevenue) {
-    const ctx = document.getElementById('channelContributionChart').getContext('2d');
-    if (contributionChart) contributionChart.destroy();
-
-    // Sort by revenue and calculate percentages
-    const sortedChannels = Object.keys(contributionData).sort((a, b) => contributionData[b] - contributionData[a]);
-    const values = sortedChannels.map(ch => contributionData[ch]);
-    const percentages = sortedChannels.map(ch => ((contributionData[ch] / totalRevenue) * 100).toFixed(1));
-
-    // Color palette for channels
-    const colors = ['#FDB913', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
-
-    contributionChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: sortedChannels.map((ch, i) => `${ch} (${percentages[i]}%)`),
-            datasets: [{
-                data: values,
-                backgroundColor: colors.slice(0, sortedChannels.length),
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'right', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } },
-                tooltip: {
-                    callbacks: {
-                        label: function (context) {
-                            const value = new Intl.NumberFormat('sv-SE').format(Math.round(context.parsed));
-                            return `${context.label}: ${value} SEK`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
 
 function renderXCOMView(xcomGroups, globalPax) {
     const AIRPORT_GROWTH_PCT = DASHBOARD_DATA.config.AIRPORT_GROWTH_PCT;
