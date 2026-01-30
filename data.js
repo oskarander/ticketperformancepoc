@@ -1,9 +1,9 @@
 const DASHBOARD_DATA = {
     "config": {
         "AIRPORT_GROWTH_PCT": 12.5,
-        "MARKET_SHARE_TARGET": 15.5,
+        "MARKET_SHARE_TARGET": 15.8,
         "MARKET_SHARE_BUDGET": 15.1,
-        "DATA_VERSION": "1.2.1"
+        "DATA_VERSION": "1.3.0"
     },
     "products": {
         "Standard": [

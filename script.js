@@ -320,6 +320,9 @@ function renderXCOMView(xcomGroups, globalPax) {
     const MARKET_SHARE_TARGET = DASHBOARD_DATA.config.MARKET_SHARE_TARGET;
     const MARKET_SHARE_BUDGET = DASHBOARD_DATA.config.MARKET_SHARE_BUDGET;
 
+    // Defined Target Mix (Assumed for breakdown)
+    const TARGET_MIX_PCT = { 'WEB': 25, 'APP': 20, 'TVM': 35, 'ARN': 5, 'Partner': 14, 'SAS': 1 };
+
     // Calculate airport context
     const airportPy = globalPax.py * 5; // Simplified assumption
     const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
@@ -388,37 +391,48 @@ function renderXCOMView(xcomGroups, globalPax) {
             `;
         }
 
-        // Performance vs Airport
-        const perfEl = document.getElementById(`xcom-${groupName.toLowerCase()}-perf`);
-        if (perfEl) {
-            const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
-            const gap = paxGrowth - AIRPORT_GROWTH_PCT;
-            const gapColor = gap >= 0 ? 'text-green-600' : 'text-red-600';
-            perfEl.innerHTML = `
-                <div class="${gapColor}">${gap > 0 ? '+' : ''}${gap.toFixed(1)} pp</div>
-            `;
-        }
-
-        // Market Share Contribution
-        const shareEl = document.getElementById(`xcom-${groupName.toLowerCase()}-share`);
-        if (shareEl) {
-            const contribution = (group.cy.PAX / globalPax.cy) * 100;
-            shareEl.innerHTML = `
-                <div class="text-gray-900">${contribution.toFixed(1)}%</div>
-            `;
-        }
-
-        // Contribution to AEX Market Share
-        const mktShareEl = document.getElementById(`xcom-${groupName.toLowerCase()}-mktshare`);
-        if (mktShareEl) {
+        // Market Share Analysis (vs PY, Budget, Target)
+        const analysisEl = document.getElementById(`xcom-${groupName.toLowerCase()}-share-analysis`);
+        if (analysisEl) {
             const airportPy = globalPax.py * 5;
             const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
 
-            // This channel group's contribution to AEX's overall market share
-            const groupShareOfAirport = (group.cy.PAX / airportCy) * 100;
+            // Channel Share (Actual vs PY)
+            const shareCy = (group.cy.PAX / airportCy) * 100;
+            const sharePy = (group.py.PAX / airportPy) * 100;
+            const diffPy = shareCy - sharePy;
 
-            mktShareEl.innerHTML = `
-                <div class="text-blue-600">${groupShareOfAirport.toFixed(2)}%</div>
+            // Targets
+            const mixPct = TARGET_MIX_PCT[groupName] || 0;
+            const targetShare = MARKET_SHARE_TARGET * (mixPct / 100);
+            const budgetShare = MARKET_SHARE_BUDGET * (mixPct / 100);
+
+            const diffTarget = shareCy - targetShare;
+            const diffBudget = shareCy - budgetShare;
+
+            const colorPy = diffPy >= 0 ? 'text-green-600' : 'text-red-600';
+            const colorTarget = diffTarget >= 0 ? 'text-green-600' : 'text-red-600';
+            const colorBudget = diffBudget >= 0 ? 'text-green-600' : 'text-red-600';
+
+            analysisEl.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-gray-900 font-bold text-base">${shareCy.toFixed(2)}%</span>
+                    <span class="text-xs text-gray-500">Actual Share</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1 text-xs">
+                    <div class="text-center">
+                        <div class="${colorPy} font-bold">${diffPy > 0 ? '+' : ''}${diffPy.toFixed(2)}</div>
+                        <div class="text-gray-400 text-[10px]">vs PY</div>
+                    </div>
+                    <div class="text-center border-l border-gray-100">
+                        <div class="${colorBudget} font-bold">${diffBudget > 0 ? '+' : ''}${diffBudget.toFixed(2)}</div>
+                        <div class="text-gray-400 text-[10px]">vs Bgt</div>
+                    </div>
+                    <div class="text-center border-l border-gray-100">
+                        <div class="${colorTarget} font-bold">${diffTarget > 0 ? '+' : ''}${diffTarget.toFixed(2)}</div>
+                        <div class="text-gray-400 text-[10px]">vs Tgt</div>
+                    </div>
+                </div>
             `;
         }
 
