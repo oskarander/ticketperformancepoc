@@ -26,16 +26,19 @@ const DASHBOARD_DATA = {
     "hierarchy": {
         "Direct": {
             "TVM": ["Standard"],
-            "WEB": ["SAS", "Campaigns", "Staff tickets", "Standard"],
+            "WEB": ["Campaigns", "Staff tickets", "Standard"],
             "APP": ["Standard"],
-            "ARN": ["Standard"],
-            "B2B": ["Distributors webb", "Corporate offer", "Manual registration"],
-            "Zettle": ["Standard"]
+            "ARN": ["Standard"]
         },
         "Partner": {
-            "Flygtaxi": ["Standard"],
-            "Samtrafiken": ["Standard"],
-            "SAS": ["Standard"]
+            "Airlines": ["SAS", "Norwegian"],
+            "B2B": {
+                "Distributor web": ["Polisen", "Myndighet"],
+                "Corporate offer": ["Martin & Servera", "Svenska Spel"],
+                "Manual registration": ["Mcinsey", "eventX"]
+            },
+            "Flygtaxi": ["Amex", "Omni"],
+            "Samtrafiken": ["SJ", "Silverrail", "VY"]
         }
     }
 };

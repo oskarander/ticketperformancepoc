@@ -31,7 +31,11 @@ function initData() {
     days.forEach((day, dIndex) => {
         Object.keys(hierarchy).forEach(group => {
             Object.keys(hierarchy[group]).forEach(channel => {
-                hierarchy[group][channel].forEach(sub => {
+                const channelData = hierarchy[group][channel];
+
+                // Helper to process a sub-channel
+                const processSub = (sub, leafVal) => {
+                    const leaf = leafVal || sub;
 
                     // Get Product preferences for this channel
                     let profile = getMixProfile(channel);
@@ -44,15 +48,36 @@ function initData() {
                     if (channel === 'TVM') baseOrders *= 35;
                     else if (channel === 'WEB') baseOrders *= 25;
                     else if (channel === 'APP') baseOrders *= 20;
-                    else if (channel === 'ARN') baseOrders *= 5; // ~5% share
+                    else if (channel === 'ARN') baseOrders *= 5;
+
+                    // Partner Channels
+                    else if (channel === 'Airlines') baseOrders *= 4;
                     else if (channel === 'B2B') baseOrders *= 8;
-                    else if (channel === 'Zettle') baseOrders *= 4;
                     else if (channel === 'Flygtaxi') baseOrders *= 3;
                     else if (channel === 'Samtrafiken') baseOrders *= 3;
-                    else if (channel === 'SAS') baseOrders *= 2;
+
+                    // Sub-channel variations
+                    if (sub === 'SAS') baseOrders *= 1.5;
+                    if (sub === 'Norwegian') baseOrders *= 0.5;
+                    if (sub === 'Amex') baseOrders *= 0.8;
+                    if (sub === 'Omni') baseOrders *= 0.2;
+                    if (sub === 'SvenskaSpel') baseOrders *= 0.1;
+
+                    // Leaf variations (B2B Deep Dive)
+                    if (leaf === 'Polisen') baseOrders *= 0.6;
+                    if (leaf === 'Myndighet') baseOrders *= 0.4;
+                    if (leaf === 'Martin & Servera') baseOrders *= 0.7;
+                    if (leaf === 'Svenska Spel') baseOrders *= 0.3;
+                    if (leaf === 'Mcinsey') baseOrders *= 0.5;
+                    if (leaf === 'eventX') baseOrders *= 0.5;
 
                     // Weekend adjustments
+                    // B2B subs logic
                     if (dIndex > 4 && channel === 'B2B') baseOrders *= 0.1;
+
+                    // Airlines adjustments
+                    if (dIndex > 4 && channel === 'Airlines') baseOrders *= 0.6; // Less business travel?
+
                     if (dIndex > 4 && ['WEB', 'APP'].includes(channel)) baseOrders *= 1.3;
 
                     Object.keys(PRODUCTS).forEach(cat => {
@@ -67,7 +92,7 @@ function initData() {
                             const growth = 1.15 + (Math.random() * 0.1 - 0.05); // ~15% growth (above airport 12.5%)
 
                             rawData.push({
-                                dIndex, day, group, channel, sub,
+                                dIndex, day, group, channel, sub, leaf,
                                 productName: prod.name,
                                 productCat: prod.cat,
                                 cy: { Revenue: rev, PAX: pax, Orders: qty },
@@ -75,7 +100,17 @@ function initData() {
                             });
                         });
                     });
-                });
+                };
+
+                // Handle Array vs Object structure
+                if (Array.isArray(channelData)) {
+                    channelData.forEach(sub => processSub(sub, null));
+                } else {
+                    // Object (B2B deep structure)
+                    Object.keys(channelData).forEach(sub => {
+                        channelData[sub].forEach(leaf => processSub(sub, leaf));
+                    });
+                }
             });
         });
     });
@@ -99,11 +134,22 @@ function getMixProfile(channel) {
 // 3. AGGREGATION LOGIC
 // ==========================================
 function getAggregates() {
-    // 1. Filter Data based on UI controls
+    const TOP_LEVEL_CHANNELS = ['WEB', 'APP', 'TVM', 'ARN'];
+
+    // 1. Filter Data based on Drill State
     const subset = rawData.filter(d => {
-        const gMatch = state.groupFilter === 'All' || d.group === state.groupFilter;
-        const cMatch = !state.drillChannel || d.channel === state.drillChannel;
-        return gMatch && cMatch;
+        if (!state.drillChannel) return true; // Show all data if no drill
+
+        if (state.drillChannel === 'Partner') {
+            // Include everything that IS NOT a direct channel
+            return !TOP_LEVEL_CHANNELS.includes(d.channel);
+        }
+
+        // Deep Dive Filters
+        if (d.channel === state.drillChannel) return true; // Matches Channel (e.g. B2B)
+        if (d.sub === state.drillChannel) return true; // Matches Sub (e.g. Distributor web)
+
+        return false;
     });
 
     // 2. Prepare containers
@@ -111,7 +157,6 @@ function getAggregates() {
     let trend = days.map(() => ({ cy: 0, py: 0 }));
     let channelMix = {}; // This populates the Bar Chart
     let productMix = days.map(() => ({ 'Standard': 0, 'Group': 0, 'Discount': 0, 'Commuter': 0 })); // Stacked Bar (Orders)
-    let channelContribution = {}; // Channel contribution to total revenue
 
     subset.forEach(d => {
         // KPIs
@@ -123,18 +168,29 @@ function getAggregates() {
         trend[d.dIndex].py += d.py[state.metric];
 
         // Channel/Drill Chart Logic
-        // If NO drill -> Group by Channel
-        // If YES drill -> Group by Sub-Channel
-        const dimKey = state.drillChannel ? d.sub : d.channel;
+        let dimKey;
+        if (state.drillChannel) {
+            if (state.drillChannel === 'Partner') {
+                dimKey = d.channel; // Show Channels (B2B, Airlines...)
+            } else if (d.channel === state.drillChannel) {
+                dimKey = d.sub; // Show Sub-segments (Distributor web...)
+            } else if (d.sub === state.drillChannel) {
+                dimKey = d.leaf; // Show Leaves (Polisen...)
+            }
+        } else {
+            // Top Level View
+            if (TOP_LEVEL_CHANNELS.includes(d.channel)) {
+                dimKey = d.channel;
+            } else {
+                dimKey = 'Partner';
+            }
+        }
+
         if (!channelMix[dimKey]) channelMix[dimKey] = 0;
         channelMix[dimKey] += d.cy[state.metric];
 
         // Product Mix Logic (Orders instead of Revenue)
         productMix[d.dIndex][d.productCat] += d.cy.Orders;
-
-        // Channel Contribution to Revenue
-        if (!channelContribution[d.channel]) channelContribution[d.channel] = 0;
-        channelContribution[d.channel] += d.cy.Revenue;
     });
 
     // XCOM Executive Summary - Group channels
@@ -143,8 +199,7 @@ function getAggregates() {
         'APP': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'TVM': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
         'ARN': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'Partner': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'SAS': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } }
+        'Partner': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } }
     };
 
     rawData.forEach(d => {
@@ -158,9 +213,7 @@ function getAggregates() {
             xcomCategory = 'TVM';
         } else if (d.channel === 'ARN') {
             xcomCategory = 'ARN';
-        } else if (d.channel === 'SAS' || (d.group === 'Partner' && d.channel === 'SAS')) {
-            xcomCategory = 'SAS';
-        } else if (d.group === 'Partner' && d.channel !== 'SAS') {
+        } else {
             xcomCategory = 'Partner';
         }
 
@@ -178,14 +231,14 @@ function getAggregates() {
     let globalPax = { cy: 0, py: 0 };
     rawData.forEach(d => { globalPax.cy += d.cy.PAX; globalPax.py += d.py.PAX; });
 
-    return { kpi, trend, channelMix, productMix, channelContribution, xcomGroups, globalPax };
+    return { kpi, trend, channelMix, productMix, xcomGroups, globalPax };
 }
 
 // ==========================================
 // 4. RENDERING
 // ==========================================
 function updateDashboard() {
-    state.groupFilter = document.getElementById('groupFilter').value;
+    state.groupFilter = 'All'; // document.getElementById('groupFilter').value;
     const data = getAggregates();
 
     renderContext(data.kpi, data.globalPax);
@@ -321,7 +374,7 @@ function renderXCOMView(xcomGroups, globalPax) {
     const MARKET_SHARE_BUDGET = DASHBOARD_DATA.config.MARKET_SHARE_BUDGET;
 
     // Defined Target Mix (Assumed for breakdown)
-    const TARGET_MIX_PCT = { 'WEB': 25, 'APP': 20, 'TVM': 35, 'ARN': 5, 'Partner': 14, 'SAS': 1 };
+    const TARGET_MIX_PCT = { 'WEB': 25, 'APP': 20, 'TVM': 35, 'ARN': 5, 'Partner': 15 };
 
     // Calculate airport context
     const airportPy = globalPax.py * 5; // Simplified assumption
@@ -352,7 +405,7 @@ function renderXCOMView(xcomGroups, globalPax) {
     }
 
     // Render each channel group
-    ['WEB', 'APP', 'TVM', 'ARN', 'Partner', 'SAS'].forEach(groupName => {
+    ['WEB', 'APP', 'TVM', 'ARN', 'Partner'].forEach(groupName => {
         const group = xcomGroups[groupName];
 
         // Revenue
@@ -472,10 +525,12 @@ function renderXCOMView(xcomGroups, globalPax) {
 // 5. INTERACTIONS
 // ==========================================
 function drillDown(label) {
-    // Only drill if the label is a Channel (not a sub-channel)
-    const isChannel = Object.values(DASHBOARD_DATA.hierarchy).some(g => Object.keys(g).includes(label));
+    const TOP_LEVEL_CHANNELS = ['WEB', 'APP', 'TVM', 'ARN'];
+    const PARTNER_CHANNELS = ['Airlines', 'B2B', 'Flygtaxi', 'Samtrafiken'];
+    const B2B_SUBS = ['Distributor web', 'Corporate offer', 'Manual registration'];
 
-    if (isChannel) {
+    // Allow drilling into Partner Group, specific Direct Channels, Partner Sub-Channels, or B2B Subs
+    if (label === 'Partner' || TOP_LEVEL_CHANNELS.includes(label) || PARTNER_CHANNELS.includes(label) || B2B_SUBS.includes(label)) {
         state.drillChannel = label;
         updateDashboard();
     }
@@ -484,7 +539,7 @@ function drillDown(label) {
 function resetView() {
     state.drillChannel = null;
     state.groupFilter = 'All';
-    document.getElementById('groupFilter').value = 'All';
+    // document.getElementById('groupFilter').value = 'All';
     updateDashboard();
 }
 
