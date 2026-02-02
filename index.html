@@ -35,16 +35,19 @@
     </div>
 
     <!-- Context & KPIs (Moved Top) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div class="card border-l-4 border-blue-500">
             <div class="flex justify-between items-start">
                 <div>
                     <p class="metric-lbl">Airport Performance</p>
                     <div class="flex items-baseline gap-2 mt-2">
-                        <span class="text-3xl font-bold text-blue-900">+12.5%</span>
+                        <span class="text-3xl font-bold text-blue-900" id="ctx-airport-actual">+12.5%</span>
                         <span class="text-sm text-gray-500">PAX vs PY</span>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">Arlanda Airport Total Traffic</p>
+                    <div class="flex gap-3 mt-2 text-[10px] font-bold">
+                        <span id="ctx-airport-bud" class="text-gray-400">Bud: --</span>
+                        <span id="ctx-airport-tgt" class="text-gray-400">Tgt: --</span>
+                    </div>
                 </div>
                 <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
                     <i class="fas fa-plane-departure"></i>
@@ -59,25 +62,14 @@
                     <div class="flex items-baseline gap-2 mt-2">
                         <span class="text-3xl font-bold text-gray-900" id="ctx-share">--%</span>
                     </div>
-                    <p class="text-xs mt-2" id="ctx-share-delta">-- vs PY</p>
+                    <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                        <span id="ctx-share-delta">-- vs PY</span>
+                        <span id="ctx-share-bud" class="text-gray-400">Bud: --</span>
+                        <span id="ctx-share-tgt" class="text-gray-400">Tgt: --</span>
+                    </div>
                 </div>
                 <div class="w-10 h-10 bg-yellow-50 rounded-full flex items-center justify-center text-yellow-600">
                     <i class="fas fa-chart-pie"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="card border-l-4 border-gray-800">
-            <div class="flex justify-between items-start">
-                <div>
-                    <p class="metric-lbl">Performance Gap</p>
-                    <div class="flex items-baseline gap-2 mt-2">
-                        <span class="text-3xl font-bold" id="ctx-gap">--</span>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">AEX Growth vs Airport Growth</p>
-                </div>
-                <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
-                    <i class="fas fa-balance-scale"></i>
                 </div>
             </div>
         </div>
@@ -87,35 +79,65 @@
         <div class="card p-4">
             <p class="metric-lbl">Revenue</p>
             <p class="metric-val mt-2" id="kpi-rev">--</p>
-            <span class="inline-block mt-2" id="var-rev">--</span>
+            <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                <span id="var-rev">--</span>
+                <span id="var-rev-bud" class="text-gray-400">Bud: --</span>
+                <span id="var-rev-tgt" class="text-gray-400">Tgt: --</span>
+            </div>
         </div>
         <div class="card p-4">
             <p class="metric-lbl">Orders</p>
             <p class="metric-val mt-2" id="kpi-orders">--</p>
-            <span class="inline-block mt-2" id="var-orders">--</span>
+            <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                <span id="var-orders">--</span>
+                <span id="var-orders-bud" class="text-gray-400">Bud: --</span>
+                <span id="var-orders-tgt" class="text-gray-400">Tgt: --</span>
+            </div>
         </div>
         <div class="card p-4">
             <p class="metric-lbl">PAX</p>
             <p class="metric-val mt-2" id="kpi-pax">--</p>
-            <span class="inline-block mt-2" id="var-pax">--</span>
+            <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                <span id="var-pax">--</span>
+                <span id="var-pax-bud" class="text-gray-400">Bud: --</span>
+                <span id="var-pax-tgt" class="text-gray-400">Tgt: --</span>
+            </div>
         </div>
         <div class="card p-4 bg-gray-50 border border-gray-100">
             <p class="metric-lbl">Yield (SEK)</p>
             <p class="metric-val mt-2" id="kpi-yield">--</p>
-            <span class="inline-block mt-2" id="var-yield">--</span>
+            <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                <span id="var-yield">--</span>
+                <span id="var-yield-bud" class="text-gray-400">Bud: --</span>
+                <span id="var-yield-tgt" class="text-gray-400">Tgt: --</span>
+            </div>
         </div>
         <div class="card p-4 bg-gray-50 border border-gray-100">
             <p class="metric-lbl">AOV (SEK)</p>
             <p class="metric-val mt-2" id="kpi-aov">--</p>
-            <span class="inline-block mt-2" id="var-aov">--</span>
+            <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
+                <span id="var-aov">--</span>
+                <span id="var-aov-bud" class="text-gray-400">Bud: --</span>
+                <span id="var-aov-tgt" class="text-gray-400">Tgt: --</span>
+            </div>
         </div>
     </div>
 
 
     <!-- DYNAMIC GRID -->
     <div class="mb-8">
-        <div id="xcom-grid" class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-            <!-- Cards will be injected here via JS -->
+        <div id="xcom-grid" class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-8">
+            <!-- Main Cards will be injected here via JS -->
+        </div>
+
+        <div id="special-section" class="mt-12 hidden">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fas fa-star text-yellow-500"></i>
+                <h2 class="text-lg font-bold text-gray-800">Special Performance</h2>
+            </div>
+            <div id="special-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-2xl">
+                <!-- Special Cards will be injected here via JS -->
+            </div>
         </div>
     </div>
 
