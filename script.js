@@ -4,15 +4,13 @@
 // CONFIG is now in DASHBOARD_DATA
 const days = ['Oct 13', 'Oct 14', 'Oct 15', 'Oct 16', 'Oct 17', 'Oct 18', 'Oct 19'];
 
-// State
 let state = {
     metric: 'Revenue',
-    groupFilter: 'All',
-    drillChannel: null // If set, we drill into Sub-Channels
+    path: [] // Navigation path: e.g. ['Partner', 'B2B']
 };
 
 let rawData = [];
-let trendChart, barChart, productChart, contributionChart;
+// Product chart logic removed
 
 // ==========================================
 // 2. MOCK DATA ENGINE
@@ -133,125 +131,164 @@ function getMixProfile(channel) {
 // ==========================================
 // 3. AGGREGATION LOGIC
 // ==========================================
-function getAggregates() {
-    const TOP_LEVEL_CHANNELS = ['WEB', 'APP', 'TVM', 'ARN'];
+// ==========================================
+// 3. AGGREGATION LOGIC
+// ==========================================
+function getNodeChildren(path) {
+    const HIERARCHY = DASHBOARD_DATA.hierarchy; // Access via global DASHBOARD_DATA which initData ensures exists
+    const TOP_LEVEL = ['WEB', 'APP', 'TVM', 'ARN', 'Partner'];
 
-    // 1. Filter Data based on Drill State
-    const subset = rawData.filter(d => {
-        if (!state.drillChannel) return true; // Show all data if no drill
+    if (path.length === 0) return TOP_LEVEL;
 
-        if (state.drillChannel === 'Partner') {
-            // Include everything that IS NOT a direct channel
-            return !TOP_LEVEL_CHANNELS.includes(d.channel);
+    // Navigate hierarchy
+    // Root -> Partner -> B2B
+
+    // Level 0: Root
+    const level0 = path[0];
+    if (path.length === 1) {
+        if (level0 === 'Partner') {
+            return Object.keys(HIERARCHY.Partner);
         }
+        // Direct channels have no sub-cards in this specific view logic unless we want to
+        // If user clicks WEB, we might show Campaigns etc. 
+        // For now, let's assume standard behavior for Direct keys if they exist in Hierarchy
+        if (HIERARCHY.Direct && HIERARCHY.Direct[level0]) return HIERARCHY.Direct[level0];
+    }
 
-        // Deep Dive Filters
-        if (d.channel === state.drillChannel) return true; // Matches Channel (e.g. B2B)
-        if (d.sub === state.drillChannel) return true; // Matches Sub (e.g. Distributor web)
+    // Level 1+: Partner -> B2B
+    if (path.length === 2 && level0 === 'Partner') {
+        const level1 = path[1];
+        const node = HIERARCHY.Partner[level1];
+        if (Array.isArray(node)) return node; // e.g. SAS, Norwegian
+        if (typeof node === 'object') return Object.keys(node); // e.g. Distributor web
+    }
 
-        return false;
-    });
+    // Level 2+: Partner -> B2B -> Distributor web
+    if (path.length === 3 && level0 === 'Partner') {
+        const level1 = path[1];
+        const level2 = path[2];
+        const node = HIERARCHY.Partner[level1][level2];
+        if (Array.isArray(node)) return node;
+    }
+
+    return [];
+}
+
+function classifyRow(d, path) {
+    // Returns the key this row belongs to for the current path
+    // e.g. if path=[], row.channel=Zettle -> 'Partner'
+    // e.g. if path=['Partner'], row.channel=Flygtaxi -> 'Flygtaxi'
+
+    if (path.length === 0) {
+        if (['WEB', 'APP', 'TVM', 'ARN'].includes(d.channel)) return d.channel;
+        return 'Partner';
+    }
+
+    const level0 = path[0];
+
+    if (level0 === 'Partner') {
+        if (path.length === 1) {
+            // Inside Partner: return row.channel (e.g. Airlines, B2B...)
+            return d.channel;
+        }
+        if (path.length === 2) {
+            // Inside Partner -> B2B: return row.sub (e.g. Distributor web)
+            // or Partner -> Airlines: return row.sub (e.g. SAS)
+            return d.sub;
+        }
+        if (path.length === 3) {
+            // Inside Partner -> B2B -> Dist: return row.leaf
+            return d.leaf;
+        }
+    }
+
+    // Direct Channel Drill (if supported in future)
+    if (['WEB', 'APP', 'TVM', 'ARN'].includes(level0)) {
+        if (path.length === 1) return d.sub;
+    }
+
+    return null;
+}
+
+function getAggregates() {
+    // 1. Determine active children nodes
+    const activeNodes = getNodeChildren(state.path);
 
     // 2. Prepare containers
     let kpi = { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } };
-    let trend = days.map(() => ({ cy: 0, py: 0 }));
-    let channelMix = {}; // This populates the Bar Chart
-    let productMix = days.map(() => ({ 'Standard': 0, 'Group': 0, 'Discount': 0, 'Commuter': 0 })); // Stacked Bar (Orders)
+    let productMix = days.map(() => ({ 'Standard': 0, 'Group': 0, 'Discount': 0, 'Commuter': 0 }));
 
-    subset.forEach(d => {
-        // KPIs
+    // Dynamic Groups for Cards
+    let groups = {};
+    activeNodes.forEach(name => {
+        groups[name] = {
+            cy: { Revenue: 0, PAX: 0, Orders: 0 },
+            py: { Revenue: 0, PAX: 0, Orders: 0 }
+        };
+    });
+
+    // 3. Aggregate
+    rawData.forEach(d => {
+        // Global KPIS (Always total, or filtered?)
+        // Usually KPIs reflect the CURRENT VIEW.
+
+        let inView = true;
+        // Check if row belongs to current path
+        if (state.path.length > 0) {
+            const root = state.path[0];
+            if (root === 'Partner') {
+                if (['WEB', 'APP', 'TVM', 'ARN'].includes(d.channel)) inView = false;
+                else {
+                    // Check deeper levels
+                    if (state.path.length > 1 && d.channel !== state.path[1]) inView = false;
+                    if (state.path.length > 2 && d.sub !== state.path[2]) inView = false;
+                }
+            } else {
+                // Direct drill
+                if (d.channel !== root) inView = false;
+            }
+        }
+
+        if (!inView) return;
+
+        // Add to KPIs
         kpi.cy.Revenue += d.cy.Revenue; kpi.cy.PAX += d.cy.PAX; kpi.cy.Orders += d.cy.Orders;
         kpi.py.Revenue += d.py.Revenue; kpi.py.PAX += d.py.PAX; kpi.py.Orders += d.py.Orders;
 
-        // Trend
-        trend[d.dIndex].cy += d.cy[state.metric];
-        trend[d.dIndex].py += d.py[state.metric];
-
-        // Channel/Drill Chart Logic
-        let dimKey;
-        if (state.drillChannel) {
-            if (state.drillChannel === 'Partner') {
-                dimKey = d.channel; // Show Channels (B2B, Airlines...)
-            } else if (d.channel === state.drillChannel) {
-                dimKey = d.sub; // Show Sub-segments (Distributor web...)
-            } else if (d.sub === state.drillChannel) {
-                dimKey = d.leaf; // Show Leaves (Polisen...)
-            }
-        } else {
-            // Top Level View
-            if (TOP_LEVEL_CHANNELS.includes(d.channel)) {
-                dimKey = d.channel;
-            } else {
-                dimKey = 'Partner';
-            }
+        // Add to Product Mix
+        if (d.productCat && productMix[d.dIndex]) {
+            productMix[d.dIndex][d.productCat] += d.cy.Orders;
         }
 
-        if (!channelMix[dimKey]) channelMix[dimKey] = 0;
-        channelMix[dimKey] += d.cy[state.metric];
-
-        // Product Mix Logic (Orders instead of Revenue)
-        productMix[d.dIndex][d.productCat] += d.cy.Orders;
-    });
-
-    // XCOM Executive Summary - Group channels
-    let xcomGroups = {
-        'WEB': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'APP': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'TVM': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'ARN': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } },
-        'Partner': { cy: { Revenue: 0, PAX: 0, Orders: 0 }, py: { Revenue: 0, PAX: 0, Orders: 0 } }
-    };
-
-    rawData.forEach(d => {
-        // Group channels into XCOM categories
-        let xcomCategory = null;
-        if (d.channel === 'WEB') {
-            xcomCategory = 'WEB';
-        } else if (d.channel === 'APP') {
-            xcomCategory = 'APP';
-        } else if (d.channel === 'TVM') {
-            xcomCategory = 'TVM';
-        } else if (d.channel === 'ARN') {
-            xcomCategory = 'ARN';
-        } else {
-            xcomCategory = 'Partner';
-        }
-
-        if (xcomCategory) {
-            xcomGroups[xcomCategory].cy.Revenue += d.cy.Revenue;
-            xcomGroups[xcomCategory].cy.PAX += d.cy.PAX;
-            xcomGroups[xcomCategory].cy.Orders += d.cy.Orders;
-            xcomGroups[xcomCategory].py.Revenue += d.py.Revenue;
-            xcomGroups[xcomCategory].py.PAX += d.py.PAX;
-            xcomGroups[xcomCategory].py.Orders += d.py.Orders;
+        // Group into Cards
+        const bucket = classifyRow(d, state.path);
+        if (bucket && groups[bucket]) {
+            groups[bucket].cy.Revenue += d.cy.Revenue;
+            groups[bucket].cy.PAX += d.cy.PAX;
+            groups[bucket].cy.Orders += d.cy.Orders;
+            groups[bucket].py.Revenue += d.py.Revenue;
+            groups[bucket].py.PAX += d.py.PAX;
+            groups[bucket].py.Orders += d.py.Orders;
         }
     });
 
-    // Global Totals for Market Share Context
+    // Global Totals for Market Share Context (Always Total Airport)
     let globalPax = { cy: 0, py: 0 };
     rawData.forEach(d => { globalPax.cy += d.cy.PAX; globalPax.py += d.py.PAX; });
 
-    return { kpi, trend, channelMix, productMix, xcomGroups, globalPax };
+    return { kpi, productMix, groups, globalPax };
 }
 
 // ==========================================
 // 4. RENDERING
 // ==========================================
 function updateDashboard() {
-    state.groupFilter = 'All'; // document.getElementById('groupFilter').value;
+    state.groupFilter = 'All';
     const data = getAggregates();
 
     renderContext(data.kpi, data.globalPax);
     renderKPIs(data.kpi);
-    renderMainCharts(data);
-    renderProductMixChart(data.productMix);
-    // Channel Contribution Chart removed (was causing crash)
-    renderXCOMView(data.xcomGroups, data.globalPax);
-
-    // Dynamic Titles
-    const drillTitle = state.drillChannel ? `${state.drillChannel} Sub-Channels` : `Sales Channel Mix`;
-    document.getElementById('breakdown-title').innerText = drillTitle;
-    document.getElementById('trend-title').innerText = `Weekly ${state.metric} Trend`;
+    renderXCOMCards(data.groups, data.globalPax);
 }
 
 function renderContext(kpi, globalPax) {
@@ -306,69 +343,13 @@ function renderKPIs(kpi) {
     renderVar(aC, aP, 'var-aov');
 }
 
-function renderMainCharts(data) {
-    // TREND
-    const ctxTrend = document.getElementById('trendChart').getContext('2d');
-    if (trendChart) trendChart.destroy();
-    trendChart = new Chart(ctxTrend, {
-        type: 'line',
-        data: {
-            labels: days,
-            datasets: [
-                { label: 'Current Year', data: data.trend.map(t => t.cy), borderColor: '#FDB913', backgroundColor: 'rgba(253,185,19,0.1)', fill: true, tension: 0.4, borderWidth: 3 },
-                { label: 'Prior Year', data: data.trend.map(t => t.py), borderColor: '#9ca3af', borderDash: [5, 5], fill: false, tension: 0.4, borderWidth: 2 }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }
-    });
-
-    // BAR (Drill Down)
-    const ctxBar = document.getElementById('barChart').getContext('2d');
-    const labels = Object.keys(data.channelMix);
-    const vals = Object.values(data.channelMix);
-    if (barChart) barChart.destroy();
-
-    barChart = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{ label: state.metric, data: vals, backgroundColor: state.drillChannel ? '#3b82f6' : '#FDB913', borderRadius: 4 }]
-        },
-        options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            onClick: (e, els) => { if (els.length > 0) drillDown(labels[els[0].index]); },
-            onHover: (e, el) => e.native.target.style.cursor = el[0] ? 'pointer' : 'default',
-            plugins: { legend: { display: false } },
-            scales: { x: { display: false }, y: { grid: { display: false } } }
-        }
-    });
-}
-
-function renderProductMixChart(mixData) {
-    const ctx = document.getElementById('productMixChart').getContext('2d');
-    if (productChart) productChart.destroy();
-
-    productChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: days,
-            datasets: [
-                { label: 'Standard', data: mixData.map(d => d.Standard), backgroundColor: '#FDB913' },
-                { label: 'Group', data: mixData.map(d => d.Group), backgroundColor: '#3b82f6' },
-                { label: 'Discount', data: mixData.map(d => d.Discount), backgroundColor: '#9ca3af' },
-                { label: 'Commuter', data: mixData.map(d => d.Commuter), backgroundColor: '#10b981' }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } },
-            plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }
-        }
-    });
-}
+// DELETED TREND AND BAR CHART LOGIC
 
 
-function renderXCOMView(xcomGroups, globalPax) {
+// DELETED TREND AND BAR CHART LOGIC
+
+
+function renderXCOMCards(groups, globalPax) {
     const AIRPORT_GROWTH_PCT = DASHBOARD_DATA.config.AIRPORT_GROWTH_PCT;
     const MARKET_SHARE_TARGET = DASHBOARD_DATA.config.MARKET_SHARE_TARGET;
     const MARKET_SHARE_BUDGET = DASHBOARD_DATA.config.MARKET_SHARE_BUDGET;
@@ -381,175 +362,141 @@ function renderXCOMView(xcomGroups, globalPax) {
     const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
     const aexShareCy = (globalPax.cy / airportCy) * 100;
 
-    // Render Global Benchmarks
-    const benchEl = document.getElementById('global-benchmarks');
-    if (benchEl) {
-        const targetGap = aexShareCy - MARKET_SHARE_TARGET;
-        const targetColor = targetGap >= 0 ? 'text-green-600' : 'text-red-600';
+    const grid = document.getElementById('xcom-grid');
+    grid.innerHTML = ''; // Clear existing
 
-        benchEl.innerHTML = `
-            <div class="flex items-center gap-2">
-                <span class="text-gray-500">Actual:</span>
-                <span class="text-blue-600 font-bold">${aexShareCy.toFixed(1)}%</span>
+    // Loop through dynamic groups
+    Object.keys(groups).forEach(groupName => {
+        const group = groups[groupName];
+
+        // Skip empty groups if any
+        if (!group) return;
+
+        // Border Colors based on group name
+        let borderColor = 'border-gray-400';
+        let icon = 'fa-chart-bar';
+        let iconColor = 'text-gray-600';
+
+        // Heuristic styling
+        if (groupName === 'WEB') { borderColor = 'border-blue-500'; icon = 'fa-globe'; iconColor = 'text-blue-500'; }
+        if (groupName === 'APP') { borderColor = 'border-indigo-500'; icon = 'fa-mobile-alt'; iconColor = 'text-indigo-500'; }
+        if (groupName === 'TVM') { borderColor = 'border-yellow-400'; icon = 'fa-desktop'; iconColor = 'text-yellow-600'; }
+        if (groupName === 'ARN') { borderColor = 'border-orange-500'; icon = 'fa-store'; iconColor = 'text-orange-500'; }
+        if (groupName === 'Partner') { borderColor = 'border-green-500'; icon = 'fa-handshake'; iconColor = 'text-green-600'; }
+
+        // Metrics Calculations
+        const revGrowth = group.py.Revenue > 0 ? ((group.cy.Revenue - group.py.Revenue) / group.py.Revenue) * 100 : 0;
+        const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
+        const ordGrowth = group.py.Orders > 0 ? ((group.cy.Orders - group.py.Orders) / group.py.Orders) * 100 : 0;
+
+        const yieldVal = group.cy.PAX > 0 ? group.cy.Revenue / group.cy.PAX : 0;
+        const yieldPy = group.py.PAX > 0 ? group.py.Revenue / group.py.PAX : 0;
+        const yieldGrowth = yieldPy > 0 ? ((yieldVal - yieldPy) / yieldPy) * 100 : 0;
+
+        const aovVal = group.cy.Orders > 0 ? group.cy.Revenue / group.cy.Orders : 0;
+        const aovPy = group.py.Orders > 0 ? group.py.Revenue / group.py.Orders : 0;
+        const aovGrowth = aovPy > 0 ? ((aovVal - aovPy) / aovPy) * 100 : 0;
+
+        // Share Analysis
+        // For sub-levels, showing Share vs Total Airport is still valid context, 
+        // or Share of Parent. Let's stick to Share of Total Airport for simplified view.
+        const shareCy = (group.cy.PAX / airportCy) * 100;
+        const sharePy = (group.py.PAX / airportPy) * 100;
+        const diffPy = shareCy - sharePy;
+
+        // Simplify formatting helpers
+        const fmt = (n) => new Intl.NumberFormat('sv-SE').format(Math.round(n));
+        const arr = (g) => g >= 0 ? '▲' : '▼';
+        const col = (g) => g >= 0 ? 'text-green-600' : 'text-red-600';
+
+        const card = document.createElement('div');
+        card.className = `card border-l-4 ${borderColor} cursor-pointer hover:shadow-md transition-shadow`;
+        card.onclick = () => drill(groupName);
+
+        card.innerHTML = `
+            <div class="mb-3 pb-2 border-b border-gray-100 flex justify-between items-start">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas ${icon} ${iconColor} text-sm"></i>
+                        <h3 class="font-bold text-gray-900 text-sm">${groupName}</h3>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Click to drill down</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300 text-xs mt-1"></i>
             </div>
-            <div class="flex items-center gap-2 border-l pl-4 border-gray-200">
-                <span class="text-gray-500">Target:</span>
-                <span class="text-gray-900 font-bold">${MARKET_SHARE_TARGET.toFixed(1)}%</span>
-                <span class="text-xs ${targetColor}">(${targetGap > 0 ? '+' : ''}${targetGap.toFixed(1)})</span>
+
+            <div class="space-y-3">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Revenue</p>
+                    <div class="text-gray-900 font-bold text-lg">${fmt(group.cy.Revenue)}</div>
+                    <div class="text-xs ${col(revGrowth)}">${arr(revGrowth)} ${Math.abs(revGrowth).toFixed(1)}%</div>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">PAX</p>
+                    <div class="text-gray-900 font-bold text-lg">${fmt(group.cy.PAX)}</div>
+                     <div class="text-xs ${col(paxGrowth)}">${arr(paxGrowth)} ${Math.abs(paxGrowth).toFixed(1)}%</div>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Orders</p>
+                    <div class="text-gray-900 font-bold text-lg">${fmt(group.cy.Orders)}</div>
+                     <div class="text-xs ${col(ordGrowth)}">${arr(ordGrowth)} ${Math.abs(ordGrowth).toFixed(1)}%</div>
+                </div>
+                <!-- Compact Grid for Yield/AOV -->
+                <div class="grid grid-cols-2 gap-2">
+                     <div>
+                        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Yield</p>
+                        <div class="text-gray-900 font-bold">${Math.round(yieldVal)}</div>
+                        <div class="text-xs ${col(yieldGrowth)}">${arr(yieldGrowth)} ${Math.abs(yieldGrowth).toFixed(1)}%</div>
+                     </div>
+                     <div>
+                        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">AOV</p>
+                        <div class="text-gray-900 font-bold">${Math.round(aovVal)}</div>
+                        <div class="text-xs ${col(aovGrowth)}">${arr(aovGrowth)} ${Math.abs(aovGrowth).toFixed(1)}%</div>
+                     </div>
+                </div>
             </div>
-            <div class="flex items-center gap-2 border-l pl-4 border-gray-200">
-                <span class="text-gray-500">Budget:</span>
-                <span class="text-gray-900 font-bold">${MARKET_SHARE_BUDGET.toFixed(1)}%</span>
+
+            <div class="mt-3 pt-2 border-t border-gray-100">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-500 uppercase">Share (vs Tot Arlanda)</span>
+                    <span class="text-gray-900 font-bold text-sm">${shareCy.toFixed(2)}%</span>
+                </div>
+                 <div class="text-right text-xs ${diffPy >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${diffPy > 0 ? '+' : ''}${diffPy.toFixed(2)} vs PY
+                 </div>
             </div>
         `;
-    }
 
-    // Render each channel group
-    ['WEB', 'APP', 'TVM', 'ARN', 'Partner'].forEach(groupName => {
-        const group = xcomGroups[groupName];
-
-        // Revenue
-        const revEl = document.getElementById(`xcom-${groupName.toLowerCase()}-rev`);
-        if (revEl) {
-            const revGrowth = group.py.Revenue > 0 ? ((group.cy.Revenue - group.py.Revenue) / group.py.Revenue) * 100 : 0;
-            const growthColor = revGrowth >= 0 ? 'text-green-600' : 'text-red-600';
-            const arrow = revGrowth >= 0 ? '▲' : '▼';
-            revEl.innerHTML = `
-                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Revenue))}</div>
-                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(revGrowth).toFixed(1)}%</div>
-            `;
-        }
-
-        // PAX
-        const paxEl = document.getElementById(`xcom-${groupName.toLowerCase()}-pax`);
-        if (paxEl) {
-            const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
-            const growthColor = paxGrowth >= 0 ? 'text-green-600' : 'text-red-600';
-            const arrow = paxGrowth >= 0 ? '▲' : '▼';
-            paxEl.innerHTML = `
-                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.PAX))}</div>
-                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(paxGrowth).toFixed(1)}%</div>
-            `;
-        }
-
-        // Orders
-        const ordEl = document.getElementById(`xcom-${groupName.toLowerCase()}-orders`);
-        if (ordEl) {
-            const ordGrowth = group.py.Orders > 0 ? ((group.cy.Orders - group.py.Orders) / group.py.Orders) * 100 : 0;
-            const growthColor = ordGrowth >= 0 ? 'text-green-600' : 'text-red-600';
-            const arrow = ordGrowth >= 0 ? '▲' : '▼';
-            ordEl.innerHTML = `
-                <div class="text-gray-900">${new Intl.NumberFormat('sv-SE').format(Math.round(group.cy.Orders))}</div>
-                <div class="text-xs mt-1 ${growthColor}">${arrow} ${Math.abs(ordGrowth).toFixed(1)}%</div>
-            `;
-        }
-
-        // Market Share Analysis (vs PY, Budget, Target)
-        const analysisEl = document.getElementById(`xcom-${groupName.toLowerCase()}-share-analysis`);
-        if (analysisEl) {
-            const airportPy = globalPax.py * 5;
-            const airportCy = airportPy * (1 + (AIRPORT_GROWTH_PCT / 100));
-
-            // Channel Share (Actual vs PY)
-            const shareCy = (group.cy.PAX / airportCy) * 100;
-            const sharePy = (group.py.PAX / airportPy) * 100;
-            const diffPy = shareCy - sharePy;
-
-            // Targets
-            const mixPct = TARGET_MIX_PCT[groupName] || 0;
-            const targetShare = MARKET_SHARE_TARGET * (mixPct / 100);
-            const budgetShare = MARKET_SHARE_BUDGET * (mixPct / 100);
-
-            const diffTarget = shareCy - targetShare;
-            const diffBudget = shareCy - budgetShare;
-
-            const colorPy = diffPy >= 0 ? 'text-green-600' : 'text-red-600';
-            const colorTarget = diffTarget >= 0 ? 'text-green-600' : 'text-red-600';
-            const colorBudget = diffBudget >= 0 ? 'text-green-600' : 'text-red-600';
-
-            analysisEl.innerHTML = `
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-gray-900 font-bold text-base">${shareCy.toFixed(2)}%</span>
-                    <span class="text-xs text-gray-500">Actual Share</span>
-                </div>
-                <div class="grid grid-cols-3 gap-1 text-xs">
-                    <div class="text-center">
-                        <div class="${colorPy} font-bold">${diffPy > 0 ? '+' : ''}${diffPy.toFixed(2)}</div>
-                        <div class="text-gray-400 text-[10px]">vs PY</div>
-                    </div>
-                    <div class="text-center border-l border-gray-100">
-                        <div class="${colorBudget} font-bold">${diffBudget > 0 ? '+' : ''}${diffBudget.toFixed(2)}</div>
-                        <div class="text-gray-400 text-[10px]">vs Bgt</div>
-                    </div>
-                    <div class="text-center border-l border-gray-100">
-                        <div class="${colorTarget} font-bold">${diffTarget > 0 ? '+' : ''}${diffTarget.toFixed(2)}</div>
-                        <div class="text-gray-400 text-[10px]">vs Tgt</div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Yield (Revenue / PAX)
-        const yieldEl = document.getElementById(`xcom-${groupName.toLowerCase()}-yield`);
-        if (yieldEl) {
-            const yieldVal = group.cy.PAX > 0 ? group.cy.Revenue / group.cy.PAX : 0;
-            const yieldPy = group.py.PAX > 0 ? group.py.Revenue / group.py.PAX : 0;
-            const yieldGrowth = yieldPy > 0 ? ((yieldVal - yieldPy) / yieldPy) * 100 : 0;
-            const arrow = yieldGrowth >= 0 ? '▲' : '▼';
-            const color = yieldGrowth >= 0 ? 'text-green-600' : 'text-red-600';
-
-            yieldEl.innerHTML = `
-                <div class="text-gray-900">${Math.round(yieldVal)} kr</div>
-                <div class="text-xs mt-1 ${color}">${arrow} ${Math.abs(yieldGrowth).toFixed(1)}%</div>
-            `;
-        }
-
-        // Avg Order Value (Revenue / Orders)
-        const aovEl = document.getElementById(`xcom-${groupName.toLowerCase()}-aov`);
-        if (aovEl) {
-            const aovVal = group.cy.Orders > 0 ? group.cy.Revenue / group.cy.Orders : 0;
-            const aovPy = group.py.Orders > 0 ? group.py.Revenue / group.py.Orders : 0;
-            const aovGrowth = aovPy > 0 ? ((aovVal - aovPy) / aovPy) * 100 : 0;
-            const arrow = aovGrowth >= 0 ? '▲' : '▼';
-            const color = aovGrowth >= 0 ? 'text-green-600' : 'text-red-600';
-
-            aovEl.innerHTML = `
-                <div class="text-gray-900">${Math.round(aovVal)} kr</div>
-                <div class="text-xs mt-1 ${color}">${arrow} ${Math.abs(aovGrowth).toFixed(1)}%</div>
-            `;
-        }
+        grid.appendChild(card);
     });
 }
 
 // ==========================================
 // 5. INTERACTIONS
 // ==========================================
-function drillDown(label) {
-    const TOP_LEVEL_CHANNELS = ['WEB', 'APP', 'TVM', 'ARN'];
-    const PARTNER_CHANNELS = ['Airlines', 'B2B', 'Flygtaxi', 'Samtrafiken'];
-    const B2B_SUBS = ['Distributor web', 'Corporate offer', 'Manual registration'];
+function drill(name) {
+    if (name === 'Direct') return; // Should not happen given logic, but safety
 
-    // Allow drilling into Partner Group, specific Direct Channels, Partner Sub-Channels, or B2B Subs
-    if (label === 'Partner' || TOP_LEVEL_CHANNELS.includes(label) || PARTNER_CHANNELS.includes(label) || B2B_SUBS.includes(label)) {
-        state.drillChannel = label;
+    // Check if node has children
+    const newPath = [...state.path, name];
+    const children = getNodeChildren(newPath);
+
+    // Only drill if we have children to show
+    if (children.length > 0) {
+        state.path.push(name);
         updateDashboard();
+    } else {
+        console.log("No further drill down for " + name);
     }
 }
 
 function resetView() {
-    state.drillChannel = null;
-    state.groupFilter = 'All';
-    // document.getElementById('groupFilter').value = 'All';
+    state.path = [];
     updateDashboard();
 }
 
 function setMetric(m) {
-    state.metric = m;
-    ['Revenue', 'Orders', 'PAX'].forEach(id => {
-        const el = document.getElementById('btn-' + id);
-        el.className = (id === m) ? 'tab-btn tab-active px-3 py-1 rounded-full text-xs shadow-sm' : 'tab-btn tab-inactive px-3 py-1 rounded-full text-xs shadow-sm';
-    });
-    updateDashboard();
+    state.metric = m; // Not used as much now charts are gone, but good for future
 }
 
 // Auto Init on Load
