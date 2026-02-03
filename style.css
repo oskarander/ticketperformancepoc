@@ -1,23 +1,131 @@
-:root { --aex-yellow: #FDB913; --aex-dark: #231f20; }
-body { background-color: #f3f4f6; font-family: 'Segoe UI', sans-serif; color: #1f2937; }
+:root {
+    --aex-yellow: #FDB913;
+    --aex-dark: #231f20;
+}
+
+body {
+    background-color: #f3f4f6;
+    font-family: 'Segoe UI', sans-serif;
+    color: #1f2937;
+}
 
 /* Card Styling */
-.card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.5rem; transition: transform 0.2s ease-in-out; }
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    transition: transform 0.2s ease-in-out;
+}
 
 /* Typography */
-.metric-val { font-size: 1.8rem; font-weight: 700; color: var(--aex-dark); line-height: 1.2; }
-.metric-lbl { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600; }
+.metric-val {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--aex-dark);
+    line-height: 1.2;
+}
+
+.metric-lbl {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+    font-weight: 600;
+}
 
 /* Indicators */
-.var-pos { color: #059669; background: #d1fae5; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
-.var-neg { color: #dc2626; background: #fee2e2; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+.var-pos {
+    color: #059669;
+    background: #d1fae5;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.var-neg {
+    color: #dc2626;
+    background: #fee2e2;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
 
 /* Controls */
-.tab-btn { transition: all 0.2s; border: 1px solid transparent; }
-.tab-active { background-color: var(--aex-yellow); color: black; font-weight: bold; border-color: var(--aex-yellow); }
-.tab-inactive { background-color: white; color: #6b7280; border-color: #e5e7eb; }
-.tab-inactive:hover { border-color: #d1d5db; color: #374151; }
+.tab-btn {
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.tab-active {
+    background-color: var(--aex-yellow);
+    color: black;
+    font-weight: bold;
+    border-color: var(--aex-yellow);
+}
+
+.tab-inactive {
+    background-color: white;
+    color: #6b7280;
+    border-color: #e5e7eb;
+}
+
+.tab-inactive:hover {
+    border-color: #d1d5db;
+    color: #374151;
+}
 
 /* Chart Heights */
-.chart-h-sm { height: 300px; width: 100%; }
-.chart-h-md { height: 350px; width: 100%; }
+.chart-h-sm {
+    height: 300px;
+    width: 100%;
+}
+
+.chart-h-md {
+    height: 350px;
+    width: 100%;
+}
+
+/* Trend Analysis Specifics */
+.trend-metric-btn {
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    background: #f8fafc;
+    color: #64748b;
+}
+
+.trend-metric-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.trend-metric-btn.active {
+    background: white;
+    color: #2563eb;
+    border-color: #2563eb;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}

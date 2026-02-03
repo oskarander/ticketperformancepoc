@@ -5,8 +5,13 @@ const days = ['Oct 13', 'Oct 14', 'Oct 15', 'Oct 16', 'Oct 17', 'Oct 18', 'Oct 1
 
 let state = {
     metric: 'Revenue',
-    path: []
+    path: [],
+    activeTab: 'main',
+    trendMetric: 'Revenue',
+    trendCompare: 'PY'
 };
+
+let trendChart = null;
 
 let rawData = [];
 
@@ -473,5 +478,364 @@ function setMetric(m) {
     state.metric = m;
 }
 
+function switchTab(tab) {
+    state.activeTab = tab;
+
+    const tabs = ['main', 'trends'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const content = document.getElementById(`tab-${t}-content`);
+
+        if (t === tab) {
+            btn.classList.add('bg-white', 'text-black', 'shadow-sm');
+            btn.classList.remove('text-gray-500');
+            content.classList.remove('hidden');
+        } else {
+            btn.classList.remove('bg-white', 'text-black', 'shadow-sm');
+            btn.classList.add('text-gray-500');
+            content.classList.add('hidden');
+        }
+    });
+
+    if (tab === 'trends') {
+        updateTrends();
+    }
+}
+
+function setTrendMetric(m) {
+    state.trendMetric = m;
+    const btns = document.querySelectorAll('.trend-metric-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    const btnId = `btn-m-${m.replace(' ', '')}`;
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.add('active');
+    updateTrends();
+}
+
+function updateTrends() {
+    const channel = document.getElementById('trend-channel').value;
+    const compareMode = document.getElementById('trend-compare').value;
+    const metric = state.trendMetric;
+
+    document.getElementById('trend-chart-title').innerText = `${metric} Performance: ${channel}`;
+    document.getElementById('comparison-legend-label').innerText = compareMode === 'PY' ? 'Prior Year' :
+        compareMode === 'Budget' ? 'Budget' : 'Target';
+
+    // 1. Prepare Data
+    const labels = days;
+    const cyData = [];
+    const compData = [];
+    const marketShareData = [];
+    const airportPaxData = [];
+
+    labels.forEach((day, dIdx) => {
+        let cySum = 0;
+        let compSum = 0;
+        let totalAexPaxCy = 0;
+        let totalAexPaxPy = 0;
+
+        // Calculate selected metric + total PAX for context
+        rawData.filter(d => d.dIndex === dIdx).forEach(d => {
+            totalAexPaxCy += d.cy.PAX;
+            totalAexPaxPy += d.py.PAX;
+
+            let match = false;
+            if (channel === 'Total') match = true;
+            else if (channel === 'Partner') {
+                if (!['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)) match = true;
+            } else {
+                if (d.channel === channel) match = true;
+            }
+
+            if (match) {
+                const getVal = (obj, m) => {
+                    if (m === 'Revenue') return obj.Revenue;
+                    if (m === 'PAX') return obj.PAX;
+                    if (m === 'Orders') return obj.Orders;
+                    if (m === 'Yield') return obj.PAX > 0 ? obj.Revenue / obj.PAX : 0;
+                    return 0;
+                };
+
+                if (metric !== 'Return Share') {
+                    cySum += getVal(d.cy, metric);
+
+                    if (compareMode === 'PY') {
+                        compSum += getVal(d.py, metric);
+                    } else if (compareMode === 'Budget') {
+                        const growth = (DASHBOARD_DATA.config.REVENUE_BUDGET_GROWTH || 16.5) / 100;
+                        const v = getVal(d.py, metric);
+                        compSum += v * (1 + growth);
+                    } else {
+                        const growth = (DASHBOARD_DATA.config.REVENUE_TARGET_GROWTH || 18) / 100;
+                        const v = getVal(d.py, metric);
+                        compSum += v * (1 + growth);
+                    }
+                }
+            }
+        });
+
+        // Special handling for averages/ratios per day
+        if (metric === 'Yield') {
+            let totalRev = 0; let totalPax = 0;
+            let totalRevComp = 0; let totalPaxComp = 0;
+            rawData.filter(d => d.dIndex === dIdx).forEach(d => {
+                let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
+                if (match) {
+                    totalRev += d.cy.Revenue; totalPax += d.cy.PAX;
+                    totalRevComp += d.py.Revenue; totalPaxComp += d.py.PAX;
+                }
+            });
+            cyData.push(totalPax > 0 ? totalRev / totalPax : 0);
+            const growth = compareMode === 'Budget' ? (DASHBOARD_DATA.config.REVENUE_BUDGET_GROWTH / 100) : (DASHBOARD_DATA.config.REVENUE_TARGET_GROWTH / 100);
+            if (compareMode === 'PY') compData.push(totalPaxComp > 0 ? totalRevComp / totalPaxComp : 0);
+            else compData.push((totalPaxComp > 0 ? totalRevComp / totalPaxComp : 0) * (1 + growth));
+        } else if (metric === 'Return Share') {
+            let totalOrders = 0; let totalReturn = 0;
+            let totalOrdersComp = 0; let totalReturnComp = 0;
+            rawData.filter(d => d.dIndex === dIdx).forEach(d => {
+                let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
+                if (match) {
+                    totalOrders += d.cy.Orders;
+                    if (d.isReturn) totalReturn += d.cy.Orders;
+                    totalOrdersComp += d.py.Orders;
+                    if (d.isReturn) totalReturnComp += d.py.Orders;
+                }
+            });
+            cyData.push(totalOrders > 0 ? (totalReturn / totalOrders) * 100 : 0);
+            compData.push(totalOrdersComp > 0 ? (totalReturnComp / totalOrdersComp) * 100 : 0);
+        } else {
+            cyData.push(cySum);
+            compData.push(compSum);
+        }
+
+        // Contextual Metrics (Market Share & Arlanda Pax)
+        const airGrowth = DASHBOARD_DATA.config.AIRPORT_GROWTH_PCT / 100;
+        const airportPaxPy = totalAexPaxPy * (5 + (Math.random() * 0.4 - 0.2));
+        const airportPaxCy = airportPaxPy * (1 + airGrowth + (Math.random() * 0.02 - 0.01));
+
+        airportPaxData.push(airportPaxCy);
+        marketShareData.push((totalAexPaxCy / airportPaxCy) * 100);
+    });
+
+    renderTrendChart(labels, cyData, compData, metric, marketShareData, airportPaxData);
+    renderTrendStats(cyData, compData, metric, compareMode);
+    renderTrendMetricGrid(channel, compareMode);
+}
+
+function renderTrendChart(labels, cyData, compData, metric, marketShareData, airportPaxData) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+
+    if (trendChart) {
+        trendChart.destroy();
+    }
+
+    const isPct = metric === 'Return Share';
+
+    trendChart = new Chart(ctx, {
+        type: 'line', // Base type
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Airport Total PAX',
+                    type: 'bar',
+                    data: airportPaxData,
+                    backgroundColor: 'rgba(203, 213, 225, 0.2)', // Light gray bars
+                    borderColor: 'transparent',
+                    yAxisID: 'yAirport',
+                    order: 4
+                },
+                {
+                    label: 'Market Share',
+                    data: marketShareData,
+                    borderColor: '#9333ea', // Purple
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    tension: 0.4,
+                    fill: false,
+                    yAxisID: 'yShare',
+                    order: 3
+                },
+                {
+                    label: 'Current Period',
+                    data: cyData,
+                    borderColor: '#2563eb', // Blue
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#2563eb',
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y',
+                    order: 1
+                },
+                {
+                    label: 'Comparison',
+                    data: compData,
+                    borderColor: '#1e293b', // Dark slate
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: false,
+                    yAxisID: 'y',
+                    order: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            const val = context.parsed.y;
+                            if (context.dataset.yAxisID === 'yShare' || isPct && context.dataset.yAxisID === 'y') {
+                                label += val.toFixed(1) + '%';
+                            } else {
+                                label += new Intl.NumberFormat('sv-SE').format(Math.round(val));
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    position: 'left',
+                    beginAtZero: false,
+                    title: { display: true, text: metric, font: { size: 10, weight: 'bold' } },
+                    grid: { color: '#f1f5f9' },
+                    ticks: {
+                        callback: (value) => isPct ? value + '%' : new Intl.NumberFormat('sv-SE', { notation: 'compact' }).format(value)
+                    }
+                },
+                yShare: {
+                    position: 'right',
+                    beginAtZero: true,
+                    max: isPct ? 100 : undefined,
+                    title: { display: true, text: 'Market Share (%)', font: { size: 10, weight: 'bold' } },
+                    grid: { display: false },
+                    ticks: {
+                        callback: (value) => value + '%'
+                    }
+                },
+                yAirport: {
+                    position: 'right',
+                    display: false, // Keep it for scaling but hide labels to avoid clutter
+                    beginAtZero: true
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+function renderTrendStats(cyData, compData, metric, compareMode) {
+    const totalCy = cyData.reduce((a, b) => a + b, 0);
+    const totalComp = compData.reduce((a, b) => a + b, 0);
+
+    const isAvg = ['Yield', 'Return Share'].includes(metric);
+    const valCy = isAvg ? totalCy / cyData.length : totalCy;
+    const valComp = isAvg ? totalComp / compData.length : totalComp;
+
+    const diff = valCy - valComp;
+    const pct = valComp > 0 ? (diff / valComp) * 100 : 0;
+
+    const fmt = (n) => isAvg ? n.toFixed(1) + (metric === 'Return Share' ? '%' : '') : new Intl.NumberFormat('sv-SE').format(Math.round(n));
+
+    const card = document.getElementById('trend-stat-card');
+    card.innerHTML = `
+        <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Period Average</p>
+        <h4 class="text-2xl font-bold text-gray-900 mb-2">${fmt(valCy)}</h4>
+        <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${pct >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}">
+                ${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%
+            </span>
+            <span class="text-[10px] text-gray-400 font-medium">vs ${compareMode}</span>
+        </div>
+    `;
+}
+
+function renderTrendMetricGrid(channel, compareMode) {
+    const grid = document.getElementById('metric-grid-trends');
+    grid.innerHTML = '';
+
+    const metrics = ['Revenue', 'PAX', 'Orders', 'Yield', 'Return Share'];
+
+    metrics.forEach(m => {
+        if (m === state.trendMetric) return;
+
+        let cyArr = []; let compArr = [];
+
+        days.forEach((day, dIdx) => {
+            let dayCy = 0; let dayComp = 0;
+            let orders = 0; let returns = 0;
+            let ordersP = 0; let returnsP = 0;
+            let rev = 0; let pax = 0;
+            let revP = 0; let paxP = 0;
+
+            rawData.filter(d => d.dIndex === dIdx).forEach(d => {
+                let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
+                if (match) {
+                    if (m === 'Revenue') { dayCy += d.cy.Revenue; dayComp += d.py.Revenue; }
+                    if (m === 'PAX') { dayCy += d.cy.PAX; dayComp += d.py.PAX; }
+                    if (m === 'Orders') { dayCy += d.cy.Orders; dayComp += d.py.Orders; }
+                    if (m === 'Yield') { rev += d.cy.Revenue; pax += d.cy.PAX; revP += d.py.Revenue; paxP += d.py.PAX; }
+                    if (m === 'Return Share') { orders += d.cy.Orders; if (d.isReturn) returns += d.cy.Orders; ordersP += d.py.Orders; if (d.isReturn) returnsP += d.py.Orders; }
+                }
+            });
+
+            if (m === 'Yield') {
+                dayCy = pax > 0 ? rev / pax : 0;
+                dayComp = paxP > 0 ? revP / paxP : 0;
+            } else if (m === 'Return Share') {
+                dayCy = orders > 0 ? (returns / orders) * 100 : 0;
+                dayComp = ordersP > 0 ? (returnsP / ordersP) * 100 : 0;
+            }
+
+            if (m !== 'Yield' && m !== 'Return Share') {
+                if (compareMode === 'Budget') dayComp *= 1.165;
+                if (compareMode === 'Target') dayComp *= 1.18;
+            } else if (m === 'Yield') {
+                if (compareMode === 'Budget') dayComp *= 1.165;
+                if (compareMode === 'Target') dayComp *= 1.18;
+            }
+
+            cyArr.push(dayCy);
+            compArr.push(dayComp);
+        });
+
+        const vCy = ['Yield', 'Return Share'].includes(m) ? cyArr.reduce((a, b) => a + b, 0) / cyArr.length : cyArr.reduce((a, b) => a + b, 0);
+        const vComp = ['Yield', 'Return Share'].includes(m) ? compArr.reduce((a, b) => a + b, 0) / compArr.length : compArr.reduce((a, b) => a + b, 0);
+        const p = vComp > 0 ? ((vCy - vComp) / vComp) * 100 : 0;
+
+        const fmt = (n) => ['Yield', 'Return Share'].includes(m) ? n.toFixed(1) + (m === 'Return Share' ? '%' : '') : new Intl.NumberFormat('sv-SE', { notation: 'compact' }).format(Math.round(n));
+
+        const card = document.createElement('div');
+        card.className = 'card p-4 cursor-pointer hover:border-blue-300 transition-colors bg-white';
+        card.onclick = () => setTrendMetric(m);
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <p class="text-[10px] font-bold text-gray-400 uppercase">${m}</p>
+                <span class="text-[10px] font-bold ${p >= 0 ? 'text-green-600' : 'text-red-600'}">${p >= 0 ? '+' : ''}${p.toFixed(1)}%</span>
+            </div>
+            <p class="text-xl font-bold text-gray-900">${fmt(vCy)}</p>
+        `;
+        grid.appendChild(card);
+    });
+}
+
 initData();
 updateDashboard();
+
