@@ -56,7 +56,7 @@
                         <p class="metric-lbl">Airport Performance</p>
                         <div class="flex items-baseline gap-2 mt-2">
                             <span class="text-3xl font-bold text-blue-900" id="ctx-airport-actual">+12.5%</span>
-                            <span class="text-sm text-gray-500">PAX vs PY</span>
+                            <span class="text-sm text-gray-500">Coupons vs PY</span>
                         </div>
                         <div class="flex gap-3 mt-2 text-[10px] font-bold">
                             <span id="ctx-airport-bud" class="text-gray-400">Bud: --</span>
@@ -100,21 +100,21 @@
                 </div>
             </div>
             <div class="card p-4">
-                <p class="metric-lbl">Orders</p>
-                <p class="metric-val mt-2" id="kpi-orders">--</p>
+                <p class="metric-lbl">Transactions</p>
+                <p class="metric-val mt-2" id="kpi-transactions">--</p>
                 <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
-                    <span id="var-orders">--</span>
-                    <span id="var-orders-bud" class="text-gray-400">Bud: --</span>
-                    <span id="var-orders-tgt" class="text-gray-400">Tgt: --</span>
+                    <span id="var-transactions">--</span>
+                    <span id="var-transactions-bud" class="text-gray-400">Bud: --</span>
+                    <span id="var-transactions-tgt" class="text-gray-400">Tgt: --</span>
                 </div>
             </div>
             <div class="card p-4">
-                <p class="metric-lbl">PAX</p>
-                <p class="metric-val mt-2" id="kpi-pax">--</p>
+                <p class="metric-lbl">Coupons</p>
+                <p class="metric-val mt-2" id="kpi-coupons">--</p>
                 <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold">
-                    <span id="var-pax">--</span>
-                    <span id="var-pax-bud" class="text-gray-400">Bud: --</span>
-                    <span id="var-pax-tgt" class="text-gray-400">Tgt: --</span>
+                    <span id="var-coupons">--</span>
+                    <span id="var-coupons-bud" class="text-gray-400">Bud: --</span>
+                    <span id="var-coupons-tgt" class="text-gray-400">Tgt: --</span>
                 </div>
             </div>
             <div class="card p-4 bg-gray-50 border border-gray-100">
@@ -153,6 +153,17 @@
                     <!-- Special Cards will be injected here via JS -->
                 </div>
             </div>
+
+            <!-- Product Sales Mix Section -->
+            <div id="sales-mix-section" class="mt-12">
+                <div class="flex items-center gap-2 mb-4">
+                    <i class="fas fa-chart-area text-blue-500"></i>
+                    <h2 class="text-lg font-bold text-gray-800">Product Sales Mix Over Time</h2>
+                </div>
+                <div class="card h-[450px]">
+                    <canvas id="salesMixChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -186,10 +197,10 @@
                             <div class="grid grid-cols-1 gap-2">
                                 <button onclick="setTrendMetric('Revenue')" id="btn-m-Revenue"
                                     class="trend-metric-btn active">Revenue</button>
-                                <button onclick="setTrendMetric('PAX')" id="btn-m-PAX"
-                                    class="trend-metric-btn">PAX</button>
-                                <button onclick="setTrendMetric('Orders')" id="btn-m-Orders"
-                                    class="trend-metric-btn">Orders</button>
+                                <button onclick="setTrendMetric('Coupons')" id="btn-m-Coupons"
+                                    class="trend-metric-btn">Coupons</button>
+                                <button onclick="setTrendMetric('Transactions')" id="btn-m-Transactions"
+                                    class="trend-metric-btn">Transactions</button>
                                 <button onclick="setTrendMetric('Yield')" id="btn-m-Yield"
                                     class="trend-metric-btn">Yield</button>
                                 <button onclick="setTrendMetric('Return Share')" id="btn-m-ReturnShare"
@@ -236,7 +247,7 @@
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded bg-gray-200"></span>
-                                <span class="text-xs font-bold text-gray-600">Arlanda PAX</span>
+                                <span class="text-xs font-bold text-gray-600">Arlanda Coupons</span>
                             </div>
                         </div>
                     </div>

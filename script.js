@@ -12,6 +12,7 @@ let state = {
 };
 
 let trendChart = null;
+let salesMixChart = null;
 
 let rawData = [];
 
@@ -63,8 +64,8 @@ function initData() {
                                 productName: prod.name,
                                 productCat: prod.cat,
                                 isReturn: prod.isReturn || false,
-                                cy: { Revenue: rev, PAX: pax, Orders: qty },
-                                py: { Revenue: rev / growth, PAX: pax / growth, Orders: qty / growth }
+                                cy: { Revenue: rev, Coupons: pax, Transactions: qty },
+                                py: { Revenue: rev / growth, Coupons: pax / growth, Transactions: qty / growth }
                             });
                         });
                     });
@@ -151,29 +152,29 @@ function getAggregates() {
     const REVENUE_BUDGET_GROWTH = (DASHBOARD_DATA.config.REVENUE_BUDGET_GROWTH || 16.5) / 100;
 
     let kpi = {
-        cy: { Revenue: 0, PAX: 0, Orders: 0 },
-        py: { Revenue: 0, PAX: 0, Orders: 0 },
-        bud: { Revenue: 0, PAX: 0, Orders: 0 },
-        tgt: { Revenue: 0, PAX: 0, Orders: 0 }
+        cy: { Revenue: 0, Coupons: 0, Transactions: 0 },
+        py: { Revenue: 0, Coupons: 0, Transactions: 0 },
+        bud: { Revenue: 0, Coupons: 0, Transactions: 0 },
+        tgt: { Revenue: 0, Coupons: 0, Transactions: 0 }
     };
 
     let groups = {};
     mainNodes.forEach(name => {
         groups[name] = {
-            cy: { Revenue: 0, PAX: 0, Orders: 0, ReturnOrders: 0 },
-            py: { Revenue: 0, PAX: 0, Orders: 0 },
-            bud: { Revenue: 0, PAX: 0, Orders: 0 },
-            tgt: { Revenue: 0, PAX: 0, Orders: 0 }
+            cy: { Revenue: 0, Coupons: 0, Transactions: 0, ReturnOrders: 0 },
+            py: { Revenue: 0, Coupons: 0, Transactions: 0 },
+            bud: { Revenue: 0, Coupons: 0, Transactions: 0 },
+            tgt: { Revenue: 0, Coupons: 0, Transactions: 0 }
         };
     });
 
     let specialGroups = {};
     specialNodes.forEach(name => {
         specialGroups[name] = {
-            cy: { Revenue: 0, PAX: 0, Orders: 0, ReturnOrders: 0 },
-            py: { Revenue: 0, PAX: 0, Orders: 0 },
-            bud: { Revenue: 0, PAX: 0, Orders: 0 },
-            tgt: { Revenue: 0, PAX: 0, Orders: 0 }
+            cy: { Revenue: 0, Coupons: 0, Transactions: 0, ReturnOrders: 0 },
+            py: { Revenue: 0, Coupons: 0, Transactions: 0 },
+            bud: { Revenue: 0, Coupons: 0, Transactions: 0 },
+            tgt: { Revenue: 0, Coupons: 0, Transactions: 0 }
         };
     });
 
@@ -195,20 +196,20 @@ function getAggregates() {
         if (!inView) return;
 
         // Add to CY/PY
-        kpi.cy.Revenue += d.cy.Revenue; kpi.cy.PAX += d.cy.PAX; kpi.cy.Orders += d.cy.Orders;
-        kpi.py.Revenue += d.py.Revenue; kpi.py.PAX += d.py.PAX; kpi.py.Orders += d.py.Orders;
+        kpi.cy.Revenue += d.cy.Revenue; kpi.cy.Coupons += d.cy.Coupons; kpi.cy.Transactions += d.cy.Transactions;
+        kpi.py.Revenue += d.py.Revenue; kpi.py.Coupons += d.py.Coupons; kpi.py.Transactions += d.py.Transactions;
 
         const bucket = classifyRow(d, state.path);
         if (bucket) {
             let targetGroup = groups[bucket] || specialGroups[bucket];
             if (targetGroup) {
                 targetGroup.cy.Revenue += d.cy.Revenue;
-                targetGroup.cy.PAX += d.cy.PAX;
-                targetGroup.cy.Orders += d.cy.Orders;
-                if (d.isReturn) targetGroup.cy.ReturnOrders += d.cy.Orders;
+                targetGroup.cy.Coupons += d.cy.Coupons;
+                targetGroup.cy.Transactions += d.cy.Transactions;
+                if (d.isReturn) targetGroup.cy.ReturnOrders += d.cy.Transactions;
                 targetGroup.py.Revenue += d.py.Revenue;
-                targetGroup.py.PAX += d.py.PAX;
-                targetGroup.py.Orders += d.py.Orders;
+                targetGroup.py.Coupons += d.py.Coupons;
+                targetGroup.py.Transactions += d.py.Transactions;
             }
         }
     });
@@ -216,23 +217,23 @@ function getAggregates() {
     // Calculate Budgets/Targets for all groups and global
     const calcBudTgt = (obj) => {
         obj.bud.Revenue = obj.py.Revenue * (1 + REVENUE_BUDGET_GROWTH);
-        obj.bud.PAX = obj.py.PAX * (1 + (REVENUE_BUDGET_GROWTH - 0.02)); // PAX grows slightly less than revenue
-        obj.bud.Orders = obj.py.Orders * (1 + (REVENUE_BUDGET_GROWTH - 0.03));
+        obj.bud.Coupons = obj.py.Coupons * (1 + (REVENUE_BUDGET_GROWTH - 0.02)); // Coupons grows slightly less than revenue
+        obj.bud.Transactions = obj.py.Transactions * (1 + (REVENUE_BUDGET_GROWTH - 0.03));
 
         obj.tgt.Revenue = obj.py.Revenue * (1 + REVENUE_TARGET_GROWTH);
-        obj.tgt.PAX = obj.py.PAX * (1 + (REVENUE_TARGET_GROWTH - 0.02));
-        obj.tgt.Orders = obj.py.Orders * (1 + (REVENUE_TARGET_GROWTH - 0.03));
+        obj.tgt.Coupons = obj.py.Coupons * (1 + (REVENUE_TARGET_GROWTH - 0.02));
+        obj.tgt.Transactions = obj.py.Transactions * (1 + (REVENUE_TARGET_GROWTH - 0.03));
     };
 
     calcBudTgt(kpi);
     Object.values(groups).forEach(calcBudTgt);
     Object.values(specialGroups).forEach(calcBudTgt);
 
-    // Global PAX for totals
-    let globalTotals = { Revenue: 0, PAX: 0 };
+    // Global Coupons for totals
+    let globalTotals = { Revenue: 0, Coupons: 0 };
     rawData.forEach(d => {
         globalTotals.Revenue += d.cy.Revenue;
-        globalTotals.PAX += d.cy.PAX;
+        globalTotals.Coupons += d.cy.Coupons;
     });
 
     return { kpi, groups, specialGroups, globalTotals };
@@ -245,12 +246,13 @@ function updateDashboard() {
     state.groupFilter = 'All';
     const data = getAggregates();
 
-    // Context still uses global PAX vs Airport
+    // Context still uses global Coupons vs Airport
     let globalPaxOnly = { cy: 0, py: 0 };
-    rawData.forEach(d => { globalPaxOnly.cy += d.cy.PAX; globalPaxOnly.py += d.py.PAX; });
+    rawData.forEach(d => { globalPaxOnly.cy += d.cy.Coupons; globalPaxOnly.py += d.py.Coupons; });
     renderContext(data.kpi, globalPaxOnly);
 
     renderKPIs(data.kpi);
+    renderSalesMixChart();
 
     document.getElementById('xcom-grid').innerHTML = '';
     document.getElementById('special-grid').innerHTML = '';
@@ -322,23 +324,23 @@ function renderKPIs(kpi) {
     document.getElementById('kpi-rev').innerText = fmt(kpi.cy.Revenue);
     renderComp(kpi.cy.Revenue, kpi.py.Revenue, kpi.bud.Revenue, kpi.tgt.Revenue, 'rev');
 
-    document.getElementById('kpi-orders').innerText = fmt(kpi.cy.Orders);
-    renderComp(kpi.cy.Orders, kpi.py.Orders, kpi.bud.Orders, kpi.tgt.Orders, 'orders');
+    document.getElementById('kpi-transactions').innerText = fmt(kpi.cy.Transactions);
+    renderComp(kpi.cy.Transactions, kpi.py.Transactions, kpi.bud.Transactions, kpi.tgt.Transactions, 'transactions');
 
-    document.getElementById('kpi-pax').innerText = fmt(kpi.cy.PAX);
-    renderComp(kpi.cy.PAX, kpi.py.PAX, kpi.bud.PAX, kpi.tgt.PAX, 'pax');
+    document.getElementById('kpi-coupons').innerText = fmt(kpi.cy.Coupons);
+    renderComp(kpi.cy.Coupons, kpi.py.Coupons, kpi.bud.Coupons, kpi.tgt.Coupons, 'coupons');
 
-    const cyY = kpi.cy.PAX ? kpi.cy.Revenue / kpi.cy.PAX : 0;
-    const pyY = kpi.py.PAX ? kpi.py.Revenue / kpi.py.PAX : 0;
-    const budY = kpi.bud.PAX ? kpi.bud.Revenue / kpi.bud.PAX : 0;
-    const tgtY = kpi.tgt.PAX ? kpi.tgt.Revenue / kpi.tgt.PAX : 0;
+    const cyY = kpi.cy.Coupons ? kpi.cy.Revenue / kpi.cy.Coupons : 0;
+    const pyY = kpi.py.Coupons ? kpi.py.Revenue / kpi.py.Coupons : 0;
+    const budY = kpi.bud.Coupons ? kpi.bud.Revenue / kpi.bud.Coupons : 0;
+    const tgtY = kpi.tgt.Coupons ? kpi.tgt.Revenue / kpi.tgt.Coupons : 0;
     document.getElementById('kpi-yield').innerText = cyY.toFixed(1);
     renderComp(cyY, pyY, budY, tgtY, 'yield');
 
-    const cyA = kpi.cy.Orders ? kpi.cy.Revenue / kpi.cy.Orders : 0;
-    const pyA = kpi.py.Orders ? kpi.py.Revenue / kpi.py.Orders : 0;
-    const budA = kpi.bud.Orders ? kpi.bud.Revenue / kpi.bud.Orders : 0;
-    const tgtA = kpi.tgt.Orders ? kpi.tgt.Revenue / kpi.tgt.Orders : 0;
+    const cyA = kpi.cy.Transactions ? kpi.cy.Revenue / kpi.cy.Transactions : 0;
+    const pyA = kpi.py.Transactions ? kpi.py.Revenue / kpi.py.Transactions : 0;
+    const budA = kpi.bud.Transactions ? kpi.bud.Revenue / kpi.bud.Transactions : 0;
+    const tgtA = kpi.tgt.Transactions ? kpi.tgt.Revenue / kpi.tgt.Transactions : 0;
     document.getElementById('kpi-aov').innerText = cyA.toFixed(0);
     renderComp(cyA, pyA, budA, tgtA, 'aov');
 }
@@ -366,25 +368,25 @@ function renderCards(groups, globalTotals, containerId) {
         const revBud = group.bud.Revenue > 0 ? ((group.cy.Revenue - group.bud.Revenue) / group.bud.Revenue) * 100 : 0;
         const revTgt = group.tgt.Revenue > 0 ? ((group.cy.Revenue - group.tgt.Revenue) / group.tgt.Revenue) * 100 : 0;
 
-        const paxGrowth = group.py.PAX > 0 ? ((group.cy.PAX - group.py.PAX) / group.py.PAX) * 100 : 0;
-        const paxBud = group.bud.PAX > 0 ? ((group.cy.PAX - group.bud.PAX) / group.bud.PAX) * 100 : 0;
-        const paxTgt = group.tgt.PAX > 0 ? ((group.cy.PAX - group.tgt.PAX) / group.tgt.PAX) * 100 : 0;
+        const paxGrowth = group.py.Coupons > 0 ? ((group.cy.Coupons - group.py.Coupons) / group.py.Coupons) * 100 : 0;
+        const paxBud = group.bud.Coupons > 0 ? ((group.cy.Coupons - group.bud.Coupons) / group.bud.Coupons) * 100 : 0;
+        const paxTgt = group.tgt.Coupons > 0 ? ((group.cy.Coupons - group.tgt.Coupons) / group.tgt.Coupons) * 100 : 0;
 
-        const yieldVal = group.cy.PAX > 0 ? group.cy.Revenue / group.cy.PAX : 0;
-        const yieldPy = group.py.PAX > 0 ? group.py.Revenue / group.py.PAX : 0;
-        const yieldBud = group.bud.PAX > 0 ? group.bud.Revenue / group.bud.PAX : 0;
-        const yieldTgt = group.tgt.PAX > 0 ? group.tgt.Revenue / group.tgt.PAX : 0;
+        const yieldVal = group.cy.Coupons > 0 ? group.cy.Revenue / group.cy.Coupons : 0;
+        const yieldPy = group.py.Coupons > 0 ? group.py.Revenue / group.py.Coupons : 0;
+        const yieldBud = group.bud.Coupons > 0 ? group.bud.Revenue / group.bud.Coupons : 0;
+        const yieldTgt = group.tgt.Coupons > 0 ? group.tgt.Revenue / group.tgt.Coupons : 0;
         const yGrowth = yieldPy > 0 ? ((yieldVal - yieldPy) / yieldPy) * 100 : 0;
         const yBud = yieldBud > 0 ? ((yieldVal - yieldBud) / yieldBud) * 100 : 0;
 
-        const aovVal = group.cy.Orders > 0 ? group.cy.Revenue / group.cy.Orders : 0;
-        const aovPy = group.py.Orders > 0 ? group.py.Revenue / group.py.Orders : 0;
-        const aovBud = group.bud.Orders > 0 ? group.bud.Revenue / group.bud.Orders : 0;
+        const aovVal = group.cy.Transactions > 0 ? group.cy.Revenue / group.cy.Transactions : 0;
+        const aovPy = group.py.Transactions > 0 ? group.py.Revenue / group.py.Transactions : 0;
+        const aovBud = group.bud.Transactions > 0 ? group.bud.Revenue / group.bud.Transactions : 0;
         const aGrowth = aovPy > 0 ? ((aovVal - aovPy) / aovPy) * 100 : 0;
         const aBud = aovBud > 0 ? ((aovVal - aovBud) / aovBud) * 100 : 0;
 
         const salesShare = (group.cy.Revenue / globalTotals.Revenue) * 100;
-        const returnShare = group.cy.Orders > 0 ? (group.cy.ReturnOrders / group.cy.Orders) * 100 : 0;
+        const returnShare = group.cy.Transactions > 0 ? (group.cy.ReturnOrders / group.cy.Transactions) * 100 : 0;
 
         const fmt = (n) => new Intl.NumberFormat('sv-SE').format(Math.round(n));
         const col = (g) => g >= 0 ? 'text-green-600' : 'text-red-600';
@@ -418,10 +420,10 @@ function renderCards(groups, globalTotals, containerId) {
                 
                 <div>
                     <div class="flex justify-between items-baseline mb-1">
-                         <p class="text-[10px] text-gray-500 uppercase font-bold">PAX</p>
+                         <p class="text-[10px] text-gray-500 uppercase font-bold">Coupons</p>
                          <div class="text-xs font-bold ${col(paxGrowth)}">${paxGrowth >= 0 ? '+' : ''}${paxGrowth.toFixed(1)}% vs PY</div>
                     </div>
-                    <div class="text-gray-900 font-bold text-lg leading-none mb-1">${fmt(group.cy.PAX)}</div>
+                    <div class="text-gray-900 font-bold text-lg leading-none mb-1">${fmt(group.cy.Coupons)}</div>
                     <div class="text-[10px] text-gray-400 font-medium">
                         Bud: <span class="${col(paxBud)}">${paxBud > 0 ? '+' : ''}${paxBud.toFixed(1)}%</span> | 
                         Tgt: <span class="${col(paxTgt)}">${paxTgt > 0 ? '+' : ''}${paxTgt.toFixed(1)}%</span>
@@ -536,8 +538,8 @@ function updateTrends() {
 
         // Calculate selected metric + total PAX for context
         rawData.filter(d => d.dIndex === dIdx).forEach(d => {
-            totalAexPaxCy += d.cy.PAX;
-            totalAexPaxPy += d.py.PAX;
+            totalAexPaxCy += d.cy.Coupons;
+            totalAexPaxPy += d.py.Coupons;
 
             let match = false;
             if (channel === 'Total') match = true;
@@ -550,9 +552,9 @@ function updateTrends() {
             if (match) {
                 const getVal = (obj, m) => {
                     if (m === 'Revenue') return obj.Revenue;
-                    if (m === 'PAX') return obj.PAX;
-                    if (m === 'Orders') return obj.Orders;
-                    if (m === 'Yield') return obj.PAX > 0 ? obj.Revenue / obj.PAX : 0;
+                    if (m === 'Coupons') return obj.Coupons;
+                    if (m === 'Transactions') return obj.Transactions;
+                    if (m === 'Yield') return obj.Coupons > 0 ? obj.Revenue / obj.Coupons : 0;
                     return 0;
                 };
 
@@ -581,8 +583,8 @@ function updateTrends() {
             rawData.filter(d => d.dIndex === dIdx).forEach(d => {
                 let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
                 if (match) {
-                    totalRev += d.cy.Revenue; totalPax += d.cy.PAX;
-                    totalRevComp += d.py.Revenue; totalPaxComp += d.py.PAX;
+                    totalRev += d.cy.Revenue; totalPax += d.cy.Coupons;
+                    totalRevComp += d.py.Revenue; totalPaxComp += d.py.Coupons;
                 }
             });
             cyData.push(totalPax > 0 ? totalRev / totalPax : 0);
@@ -590,19 +592,19 @@ function updateTrends() {
             if (compareMode === 'PY') compData.push(totalPaxComp > 0 ? totalRevComp / totalPaxComp : 0);
             else compData.push((totalPaxComp > 0 ? totalRevComp / totalPaxComp : 0) * (1 + growth));
         } else if (metric === 'Return Share') {
-            let totalOrders = 0; let totalReturn = 0;
-            let totalOrdersComp = 0; let totalReturnComp = 0;
+            let totalTransactions = 0; let totalReturn = 0;
+            let totalTransactionsComp = 0; let totalReturnComp = 0;
             rawData.filter(d => d.dIndex === dIdx).forEach(d => {
                 let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
                 if (match) {
-                    totalOrders += d.cy.Orders;
-                    if (d.isReturn) totalReturn += d.cy.Orders;
-                    totalOrdersComp += d.py.Orders;
-                    if (d.isReturn) totalReturnComp += d.py.Orders;
+                    totalTransactions += d.cy.Transactions;
+                    if (d.isReturn) totalReturn += d.cy.Transactions;
+                    totalTransactionsComp += d.py.Transactions;
+                    if (d.isReturn) totalReturnComp += d.py.Transactions;
                 }
             });
-            cyData.push(totalOrders > 0 ? (totalReturn / totalOrders) * 100 : 0);
-            compData.push(totalOrdersComp > 0 ? (totalReturnComp / totalOrdersComp) * 100 : 0);
+            cyData.push(totalTransactions > 0 ? (totalReturn / totalTransactions) * 100 : 0);
+            compData.push(totalTransactionsComp > 0 ? (totalReturnComp / totalTransactionsComp) * 100 : 0);
         } else {
             cyData.push(cySum);
             compData.push(compSum);
@@ -771,7 +773,7 @@ function renderTrendMetricGrid(channel, compareMode) {
     const grid = document.getElementById('metric-grid-trends');
     grid.innerHTML = '';
 
-    const metrics = ['Revenue', 'PAX', 'Orders', 'Yield', 'Return Share'];
+    const metrics = ['Revenue', 'Coupons', 'Transactions', 'Yield', 'Return Share'];
 
     metrics.forEach(m => {
         if (m === state.trendMetric) return;
@@ -789,10 +791,10 @@ function renderTrendMetricGrid(channel, compareMode) {
                 let match = (channel === 'Total' || d.channel === channel || (channel === 'Partner' && !['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)));
                 if (match) {
                     if (m === 'Revenue') { dayCy += d.cy.Revenue; dayComp += d.py.Revenue; }
-                    if (m === 'PAX') { dayCy += d.cy.PAX; dayComp += d.py.PAX; }
-                    if (m === 'Orders') { dayCy += d.cy.Orders; dayComp += d.py.Orders; }
-                    if (m === 'Yield') { rev += d.cy.Revenue; pax += d.cy.PAX; revP += d.py.Revenue; paxP += d.py.PAX; }
-                    if (m === 'Return Share') { orders += d.cy.Orders; if (d.isReturn) returns += d.cy.Orders; ordersP += d.py.Orders; if (d.isReturn) returnsP += d.py.Orders; }
+                    if (m === 'Coupons') { dayCy += d.cy.Coupons; dayComp += d.py.Coupons; }
+                    if (m === 'Transactions') { dayCy += d.cy.Transactions; dayComp += d.py.Transactions; }
+                    if (m === 'Yield') { rev += d.cy.Revenue; pax += d.cy.Coupons; revP += d.py.Revenue; paxP += d.py.Coupons; }
+                    if (m === 'Return Share') { orders += d.cy.Transactions; if (d.isReturn) returns += d.cy.Transactions; ordersP += d.py.Transactions; if (d.isReturn) returnsP += d.py.Transactions; }
                 }
             });
 
@@ -833,6 +835,86 @@ function renderTrendMetricGrid(channel, compareMode) {
             <p class="text-xl font-bold text-gray-900">${fmt(vCy)}</p>
         `;
         grid.appendChild(card);
+    });
+}
+
+function renderSalesMixChart() {
+    const ctx = document.getElementById('salesMixChart').getContext('2d');
+    if (salesMixChart) salesMixChart.destroy();
+
+    const dataByDay = days.map(() => ({}));
+    const products = DASHBOARD_DATA.products;
+    const categories = Object.keys(products);
+
+    rawData.forEach(d => {
+        let inView = true;
+        if (state.path.length > 0) {
+            const root = state.path[0];
+            if (root === 'Partner') {
+                if (['WEB', 'APP', 'TVM', 'ARN T5', 'Staff tickets', 'Arlanda employees'].includes(d.channel)) inView = false;
+                else {
+                    if (state.path.length > 1 && d.channel !== state.path[1]) inView = false;
+                    if (state.path.length > 2 && d.sub !== state.path[2]) inView = false;
+                }
+            } else {
+                if (d.channel !== root) inView = false;
+            }
+        }
+        if (!inView) return;
+
+        const cat = d.productCat;
+        dataByDay[d.dIndex][cat] = (dataByDay[d.dIndex][cat] || 0) + d.cy.Revenue;
+    });
+
+    const colors = {
+        'Standard': '#2563eb', // Blue-600
+        'Group': '#4f46e5',    // Indigo-600
+        'Discount': '#f59e0b', // Amber-500
+        'Commuter': '#10b981'  // Emerald-500
+    };
+
+    const datasets = categories.map(cat => ({
+        label: cat,
+        data: dataByDay.map(dayData => dayData[cat] || 0),
+        backgroundColor: colors[cat] + '99', // ~60% opacity fill
+        borderColor: colors[cat],
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2
+    }));
+
+    salesMixChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: days,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6, font: { size: 10, weight: 'bold' } } },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            return `${context.dataset.label}: ${new Intl.NumberFormat('sv-SE').format(Math.round(context.parsed.y))} SEK`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    title: { display: true, text: 'Revenue (SEK)', font: { size: 10, weight: 'bold' } },
+                    grid: { color: '#f1f5f9' },
+                    ticks: { callback: (val) => new Intl.NumberFormat('sv-SE', { notation: 'compact' }).format(val) }
+                },
+                x: { grid: { display: false } }
+            }
+        }
     });
 }
 
